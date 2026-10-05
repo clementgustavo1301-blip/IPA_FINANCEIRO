@@ -2424,12 +2424,6 @@ function DetalhesPanel({
       <PanelHeader 
         title="Detalhes da Solicitação" 
         onClose={onClose} 
-        onEdit={
-          (userRole === "ipa" && req.statusFinanceiro === "Pendente") ||
-          (userRole === "empresa" && req.statusIPA === "Pendente Aprovação")
-            ? onEdit
-            : undefined
-        }
       />
       <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
         <div className="p-3.5 sm:p-5 space-y-3.5 sm:space-y-5 flex-1">
@@ -2783,15 +2777,17 @@ function DetalhesPanel({
           )}
         </div>
 
-        {/* Save Button */}
-        <div className="p-5 border-t border-[#1a1a1a] shrink-0">
-          <button 
-            onClick={onSave}
-            className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold text-[12px] py-2.5 rounded-lg transition-colors"
-          >
-            Salvar Alterações
-          </button>
-        </div>
+        {/* Save Button (visível apenas se houver anexo novo enviado para salvar) */}
+        {(uploadedFile !== req.comprovante_url || uploadedNF !== req.nota_fiscal_url) && (
+          <div className="p-5 border-t border-[#1a1a1a] shrink-0">
+            <button 
+              onClick={onSave}
+              className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-semibold text-[12px] py-2.5 rounded-lg transition-colors cursor-pointer"
+            >
+              Salvar Alterações
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
