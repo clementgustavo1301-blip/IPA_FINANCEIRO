@@ -756,16 +756,14 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             sidebarCollapsed ? "px-0 justify-center w-full" : "px-5 gap-3"
           }`}>
             {/* Logo Mark */}
-            <div className={`flex items-baseline shrink-0 font-black tracking-[-0.04em] leading-none select-none transition-all duration-300 ${
-              sidebarCollapsed ? "text-[20px]" : "text-[22px]"
-            }`}>
-              <span className={`text-white transition-all duration-300 overflow-hidden ${
-                sidebarCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-              }`}>I</span>
-              <span className={`text-white transition-all duration-300 overflow-hidden ${
-                sidebarCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-              }`}>P</span>
-              <span className="text-[#3B82F6]">A</span>
+            <div className="flex items-center shrink-0">
+              <img
+                src="/logo.png"
+                alt="Logo"
+                className={`transition-all duration-300 object-contain ${
+                  sidebarCollapsed ? "w-8 h-8" : "w-10 h-10"
+                }`}
+              />
             </div>
             {/* Tagline */}
             <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
@@ -844,9 +842,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
               <Menu size={18} />
             </button>
             {/* PA mark */}
-            <div className="font-black text-[16px] sm:text-[18px] tracking-[-0.04em] leading-none select-none">
-              <span className="text-white">P</span>
-              <span className="text-[#3B82F6]">A</span>
+            <div className="flex items-center shrink-0">
+              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
             </div>
             <div className="w-px h-4 bg-[#1a1a1a]" />
             <h1 className="text-[13px] sm:text-[15px] font-semibold tracking-tight">Dashboard</h1>
