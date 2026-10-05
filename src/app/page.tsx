@@ -758,10 +758,10 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             {/* Logo Mark */}
             <div className="flex items-center shrink-0">
               <img
-                src="/logo.png"
-                alt="Logo"
+                src={sidebarCollapsed ? "/logo-pa.png" : "/logo.png"}
+                alt="Logo IPA"
                 className={`transition-all duration-300 object-contain ${
-                  sidebarCollapsed ? "w-8 h-8" : "w-10 h-10"
+                  sidebarCollapsed ? "h-6 w-auto" : "h-7 w-auto"
                 }`}
               />
             </div>
@@ -769,8 +769,14 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
               sidebarCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
             }`}>
-              <span className="text-[7px] tracking-[0.18em] text-[#444] font-medium uppercase whitespace-nowrap select-none block">
-                Solicitações · Aprovações · Pagamentos
+              <span className="text-[7px] tracking-[0.14em] text-[#555] font-semibold uppercase whitespace-nowrap select-none block leading-[1.2]">
+                SOLICITAÇÕES
+              </span>
+              <span className="text-[7px] tracking-[0.14em] text-[#555] font-semibold uppercase whitespace-nowrap select-none block leading-[1.2]">
+                APROVAÇÕES
+              </span>
+              <span className="text-[7px] tracking-[0.14em] text-[#555] font-semibold uppercase whitespace-nowrap select-none block leading-[1.2]">
+                PAGAMENTOS
               </span>
             </div>
           </div>
@@ -843,7 +849,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             </button>
             {/* PA mark */}
             <div className="flex items-center shrink-0">
-              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+              <img src="/logo-pa.png" alt="IPA" className="h-5 sm:h-6 w-auto object-contain" />
             </div>
             <div className="w-px h-4 bg-[#1a1a1a]" />
             <h1 className="text-[13px] sm:text-[15px] font-semibold tracking-tight">Dashboard</h1>
