@@ -7,6 +7,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { supabase } from "@/lib/supabase";
 import AuthScreen from "@/components/AuthScreen";
+import IpaLogo from "@/components/IpaLogo";
 import {
   LayoutDashboard,
   FileText,
@@ -33,6 +34,7 @@ import {
   LogOut,
   LayoutGrid,
   Table as TableIcon,
+  Pencil,
 } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────────
@@ -447,7 +449,10 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setRightPanel("editar");
   }, [solicitacoes, mockClinicas]);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+    }
     if (isSubmitting) return;
 
     const clinicaDb = mockClinicas.find(c => c.nome === formClinica);
@@ -551,13 +556,16 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             if (solError) throw solError;
 
             // Re-create colaboradores (delete old and insert new)
-            await supabase.from('colaboradores_solicitacao').delete().eq('solicitacao_id', current.db_id);
+            const { error: delColabsError } = await supabase.from('colaboradores_solicitacao').delete().eq('solicitacao_id', current.db_id);
+            if (delColabsError) console.error("Erro ao atualizar colaboradores:", delColabsError);
+
             if (finalColabs.length > 0) {
               const colabsData = finalColabs.map(nome => ({
                 solicitacao_id: current.db_id,
                 nome: nome
               }));
-              await supabase.from('colaboradores_solicitacao').insert(colabsData);
+              const { error: insColabsError } = await supabase.from('colaboradores_solicitacao').insert(colabsData);
+              if (insColabsError) throw insColabsError;
             }
           }
         } else {
@@ -589,9 +597,16 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         }
 
         await fetchDashboardData(); // Refetch
-        alert(userRole === "empresa" ? "Solicitação enviada com sucesso! Aguarde a aprovação do setor IPA." : "Solicitação salva com sucesso!");
+        alert(
+          userRole === "empresa"
+            ? "Solicitação enviada com sucesso! Aguarde a aprovação do setor IPA."
+            : rightPanel === "editar"
+            ? "Solicitação atualizada com sucesso!"
+            : "Solicitação salva com sucesso!"
+        );
         
         setRightPanel("none");
+        setSelectedId(null);
         // Reset form
         setFormClinica("");
         setFormCidade("");
@@ -599,6 +614,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setFormValor("R$ 0,00");
         setFormColabs([]);
         setFormPix("");
+        setFormDataAtendimento("");
       } catch (error: any) {
         alert("Erro ao salvar solicitação: " + error.message);
       } finally {
@@ -753,24 +769,21 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
           className="h-16 flex items-center border-b border-[#1a1a1a] shrink-0 cursor-pointer hover:bg-[#0f0f0f] transition-colors overflow-hidden"
         >
           <div className={`flex items-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-            sidebarCollapsed ? "pl-[18px]" : "pl-5"
+            sidebarCollapsed ? "pl-[17px]" : "pl-5"
           }`}>
             {/* Logo Mark — collapsed shows only "A"; expanding reveals "IP" */}
             <div
-              role="img"
-              aria-label="Logo IPA"
               className={`relative h-7 shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                sidebarCollapsed ? "w-[32px]" : "w-[68px]"
+                sidebarCollapsed ? "w-[33px]" : "w-[69px]"
               }`}
             >
-              <img
-                src="/logo-ip.png"
-                alt=""
-                className={`absolute right-0 top-0 h-full w-auto max-w-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-                  sidebarCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0"
+              <IpaLogo
+                title="Logo IPA"
+                className="absolute right-0 top-0 h-7 w-[68.5px] max-w-none text-white"
+                ipClassName={`transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                  sidebarCollapsed ? "opacity-0 -translate-x-[80px]" : "opacity-100 translate-x-0"
                 }`}
               />
-              <img src="/logo-a.png" alt="" className="absolute right-0 top-0 h-full w-auto max-w-none" />
             </div>
             {/* Tagline */}
             <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
@@ -2411,7 +2424,12 @@ function DetalhesPanel({
       <PanelHeader 
         title="Detalhes da Solicitação" 
         onClose={onClose} 
-        onEdit={userRole === "ipa" && req.statusFinanceiro === "Pendente" ? onEdit : undefined}
+        onEdit={
+          (userRole === "ipa" && req.statusFinanceiro === "Pendente") ||
+          (userRole === "empresa" && req.statusIPA === "Pendente Aprovação")
+            ? onEdit
+            : undefined
+        }
       />
       <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
         <div className="p-3.5 sm:p-5 space-y-3.5 sm:space-y-5 flex-1">
@@ -2456,6 +2474,21 @@ function DetalhesPanel({
             )}
 
             <MetaRow icon={<DollarSign size={14} />} label="Valor" value={brl(req.valor)} />
+
+            {/* Ação rápida de Edição para quem tem permissão */}
+            {((userRole === "ipa" && req.statusFinanceiro === "Pendente") ||
+              (userRole === "empresa" && req.statusIPA === "Pendente Aprovação")) && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#141414] hover:bg-[#1a1a1a] text-[#ccc] hover:text-white border border-[#222] hover:border-[#3B82F6]/50 text-[11px] font-medium transition-all cursor-pointer"
+                >
+                  <Pencil size={12} className="text-[#3B82F6]" />
+                  Editar dados da solicitação
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="h-px bg-[#1a1a1a]" />

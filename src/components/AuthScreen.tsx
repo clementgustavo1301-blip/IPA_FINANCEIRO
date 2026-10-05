@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
+import IpaLogo from "@/components/IpaLogo";
 import { Lock, Loader2, ArrowRight, User, Briefcase, Eye, EyeOff, Building2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -128,29 +129,7 @@ export default function AuthScreen() {
         <div className="relative z-10 px-16 xl:px-24 max-w-[620px]">
           {/* IPA Official Logo Component */}
           <div className="flex flex-col items-start">
-            <svg
-              width="210"
-              height="80"
-              viewBox="0 0 340 120"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
-            >
-              {/* Letter I */}
-              <rect x="0" y="2" width="32" height="116" rx="2" fill="currentColor" />
-
-              {/* Letter P */}
-              <path
-                d="M58 2 H124 C154 2 174 20 174 48 C174 76 154 94 124 94 H90 V118 H58 V2 Z M90 30 V66 H122 C137 66 143 59 143 48 C143 37 137 30 122 30 H90 Z"
-                fill="currentColor"
-              />
-
-              {/* Letter A (Modern open geometric triangle matching the brand) */}
-              <path
-                d="M 248 0 L 316 118 H 283 L 248 54 L 213 118 H 180 L 248 0 Z"
-                fill="currentColor"
-              />
-            </svg>
+            <IpaLogo className="w-[210px] h-[86px] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]" />
 
             {/* Logo Subtitle */}
             <p className="text-[13px] text-white/90 font-medium tracking-[0.03em] leading-[1.45] mt-3">
