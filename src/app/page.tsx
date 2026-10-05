@@ -753,21 +753,28 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
           className="h-16 flex items-center border-b border-[#1a1a1a] shrink-0 cursor-pointer hover:bg-[#0f0f0f] transition-colors overflow-hidden"
         >
           <div className={`flex items-center transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-            sidebarCollapsed ? "px-0 justify-center w-full" : "px-5 gap-3"
+            sidebarCollapsed ? "pl-[18px]" : "pl-5"
           }`}>
-            {/* Logo Mark */}
-            <div className="flex items-center shrink-0">
+            {/* Logo Mark — collapsed shows only "A"; expanding reveals "IP" */}
+            <div
+              role="img"
+              aria-label="Logo IPA"
+              className={`relative h-7 shrink-0 overflow-hidden transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                sidebarCollapsed ? "w-[32px]" : "w-[68px]"
+              }`}
+            >
               <img
-                src={sidebarCollapsed ? "/logo-pa.png" : "/logo.png"}
-                alt="Logo IPA"
-                className={`transition-all duration-300 object-contain ${
-                  sidebarCollapsed ? "h-6 w-auto" : "h-7 w-auto"
+                src="/logo-ip.png"
+                alt=""
+                className={`absolute right-0 top-0 h-full w-auto max-w-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
+                  sidebarCollapsed ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0"
                 }`}
               />
+              <img src="/logo-a.png" alt="" className="absolute right-0 top-0 h-full w-auto max-w-none" />
             </div>
             {/* Tagline */}
             <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${
-              sidebarCollapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              sidebarCollapsed ? "w-0 ml-0 opacity-0" : "w-auto ml-3 opacity-100"
             }`}>
               <span className="text-[7px] tracking-[0.14em] text-[#555] font-semibold uppercase whitespace-nowrap select-none block leading-[1.2]">
                 SOLICITAÇÕES
@@ -847,11 +854,6 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             >
               <Menu size={18} />
             </button>
-            {/* PA mark */}
-            <div className="flex items-center shrink-0">
-              <img src="/logo-pa.png" alt="IPA" className="h-5 sm:h-6 w-auto object-contain" />
-            </div>
-            <div className="w-px h-4 bg-[#1a1a1a]" />
             <h1 className="text-[13px] sm:text-[15px] font-semibold tracking-tight">Dashboard</h1>
           </div>
 
