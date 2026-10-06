@@ -63,6 +63,7 @@ interface Solicitacao {
   solicitado_por_nome?: string;
   aprovado_por_nome?: string;
   observacao?: string;
+  chave_pix?: string;
 }
 
 type RightPanel = "none" | "nova" | "detalhes" | "editar";
@@ -192,7 +193,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       .from('solicitacoes')
       .select(`
         *,
-        clinicas (nome),
+        clinicas (nome, chave_pix),
         empresas_clientes (nome),
         colaboradores_solicitacao (nome)
       `)
@@ -221,6 +222,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         solicitado_por_nome: s.solicitado_por_nome,
         aprovado_por_nome: s.aprovado_por_nome,
         observacao: s.observacao,
+        chave_pix: s.clinicas?.chave_pix,
       }));
       setSolicitacoes(formattedSols);
     }
@@ -2473,6 +2475,9 @@ function DetalhesPanel({
           {/* Metadata */}
           <div className="space-y-3">
             <MetaRow icon={<Building2 size={14} />} label="Clínica" value={req.clinica} />
+            {req.chave_pix && (
+              <MetaRow icon={<DollarSign size={14} />} label="Chave PIX" value={req.chave_pix} />
+            )}
             <MetaRow icon={<Building2 size={14} />} label="Empresa Cliente" value={req.cliente} />
             <MetaRow icon={<Calendar size={14} />} label="Solicitado em" value={req.data} />
             {req.data_atendimento && (
