@@ -628,6 +628,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       } finally {
         setIsSubmitting(false);
       }
+    },
     [formClinica, formCliente, formColabs, formValor, formPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, isSubmitting, userRole, userName, session, fetchDashboardData]
   );
 
