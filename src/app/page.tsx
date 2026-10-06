@@ -2498,8 +2498,14 @@ function DetalhesPanel({
             <MetaRow icon={<DollarSign size={14} />} label="Valor" value={brl(req.valor)} />
 
             {req.observacao && (
-              <div className="pt-2">
-                <MetaRow icon={<FileText size={14} />} label="Observação" value={req.observacao} />
+              <div className="pt-2 flex flex-col gap-1">
+                <div className="flex items-center gap-2 sm:gap-2.5 text-[10px] sm:text-[11px]">
+                  <span className="text-[#444] shrink-0"><FileText size={14} /></span>
+                  <span className="text-[#555] w-24 sm:w-28 shrink-0">Observação</span>
+                </div>
+                <p className="text-[#ccc] text-[10px] sm:text-[11px] font-medium leading-relaxed whitespace-pre-wrap ml-[24px] sm:ml-[26px]">
+                  {req.observacao}
+                </p>
               </div>
             )}
 
