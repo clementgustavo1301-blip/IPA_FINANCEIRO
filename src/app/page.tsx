@@ -22,6 +22,7 @@ import {
   Building2,
   Users,
   Copy,
+  MapPin,
   Calendar,
   Check,
   CheckCircle2,
@@ -2515,6 +2516,9 @@ function DetalhesPanel({
               <MetaRow icon={<Users size={14} />} label="Recebedor PIX" value={req.recebedor_pix} />
             )}
             <MetaRow icon={<Building2 size={14} />} label="Empresa Cliente" value={req.cliente} />
+            {(req.cidade || req.estado) && (
+              <MetaRow icon={<MapPin size={14} />} label="Localidade" value={`${req.cidade || ''}${req.cidade && req.estado ? ' - ' : ''}${req.estado || ''}`} />
+            )}
             <MetaRow icon={<Calendar size={14} />} label="Solicitado em" value={req.data} />
             {req.data_atendimento && (
               <MetaRow icon={<Calendar size={14} />} label="Data Atendimento" value={req.data_atendimento} />
