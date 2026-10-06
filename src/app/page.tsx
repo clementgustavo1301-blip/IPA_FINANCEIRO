@@ -64,6 +64,7 @@ interface Solicitacao {
   aprovado_por_nome?: string;
   observacao?: string;
   chave_pix?: string;
+  recebedor_pix?: string;
 }
 
 type RightPanel = "none" | "nova" | "detalhes" | "editar";
@@ -155,6 +156,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [formColabs, setFormColabs] = useState<string[]>([]);
   const [formValor, setFormValor] = useState("R$ 0,00");
   const [formPix, setFormPix] = useState("");
+  const [formRecebedorPix, setFormRecebedorPix] = useState("");
   const [formDataAtendimento, setFormDataAtendimento] = useState("");
   const [formObservacao, setFormObservacao] = useState("");
 
@@ -193,7 +195,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       .from('solicitacoes')
       .select(`
         *,
-        clinicas (nome, chave_pix),
+        clinicas (nome, chave_pix, recebedor_pix),
         empresas_clientes (nome),
         colaboradores_solicitacao (nome)
       `)
@@ -223,6 +225,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         aprovado_por_nome: s.aprovado_por_nome,
         observacao: s.observacao,
         chave_pix: s.clinicas?.chave_pix,
+        recebedor_pix: s.clinicas?.recebedor_pix,
       }));
       setSolicitacoes(formattedSols);
     }
@@ -292,8 +295,11 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       if (c.cidade) setFormCidade(c.cidade);
       if (c.chave_pix) setFormPix(c.chave_pix);
       else setFormPix("");
+      if (c.recebedor_pix) setFormRecebedorPix(c.recebedor_pix);
+      else setFormRecebedorPix("");
     } else {
       setFormPix("");
+      setFormRecebedorPix("");
     }
   };
 
@@ -405,6 +411,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setFormCliente("");
     setFormValor("R$ 0,00");
     setFormPix("");
+    setFormRecebedorPix("");
     setFormCidade("");
     setFormEstado("Selecione");
     setFormDataAtendimento("");
@@ -452,6 +459,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     const c = mockClinicas.find(cl => cl.nome === current.clinica);
     if (c) {
       setFormPix(c.chave_pix || "");
+      setFormRecebedorPix(c.recebedor_pix || "");
     }
     setRightPanel("editar");
   }, [solicitacoes, mockClinicas]);
@@ -470,8 +478,11 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setIsSubmitting(true);
 
     try {
-        if (formPix) {
-          await supabase.from("clinicas").update({ chave_pix: formPix }).eq("id", clinicaDb.id);
+        if (formPix || formRecebedorPix) {
+          await supabase.from("clinicas").update({ 
+            chave_pix: formPix || null, 
+            recebedor_pix: formRecebedorPix || null 
+          }).eq("id", clinicaDb.id);
         }
 
         const valorNumerico = parseFloat(formValor.replace(/[^\d,]/g, "").replace(",", ".")) || 0;
@@ -623,6 +634,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setFormValor("R$ 0,00");
         setFormColabs([]);
         setFormPix("");
+        setFormRecebedorPix("");
         setFormDataAtendimento("");
         setFormObservacao("");
       } catch (error: any) {
@@ -631,7 +643,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setIsSubmitting(false);
       }
     },
-    [formClinica, formCliente, formColabs, formValor, formPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, isSubmitting, userRole, userName, session, fetchDashboardData]
+    [formClinica, formCliente, formColabs, formValor, formPix, formRecebedorPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, isSubmitting, userRole, userName, session, fetchDashboardData]
   );
 
   const togglePayment = useCallback(async () => {
@@ -1897,6 +1909,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormValor={setFormValor}
                   formPix={formPix}
                   setFormPix={setFormPix}
+                  formRecebedorPix={formRecebedorPix}
+                  setFormRecebedorPix={setFormRecebedorPix}
                   formDataAtendimento={formDataAtendimento}
                   setFormDataAtendimento={setFormDataAtendimento}
                   formObservacao={formObservacao}
@@ -1965,6 +1979,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormValor={setFormValor}
                   formPix={formPix}
                   setFormPix={setFormPix}
+                  formRecebedorPix={formRecebedorPix}
+                  setFormRecebedorPix={setFormRecebedorPix}
                   formDataAtendimento={formDataAtendimento}
                   setFormDataAtendimento={setFormDataAtendimento}
                   formObservacao={formObservacao}
@@ -2011,6 +2027,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                if (newData.uf) setFormEstado(newData.uf);
                if (newData.municipio) setFormCidade(newData.municipio);
                if (newData.chave_pix) setFormPix(newData.chave_pix);
+               if ((newData as any).recebedor_pix) setFormRecebedorPix((newData as any).recebedor_pix);
             } else {
                setMockEmpresas([...mockEmpresas, { ...newData }]);
                setFormCliente(newData.nome);
@@ -2174,6 +2191,8 @@ function NovaSolicitacaoPanel({
   setFormValor,
   formPix,
   setFormPix,
+  formRecebedorPix,
+  setFormRecebedorPix,
   formDataAtendimento,
   setFormDataAtendimento,
   formObservacao,
@@ -2203,6 +2222,8 @@ function NovaSolicitacaoPanel({
   setFormValor: (v: string) => void;
   formPix: string;
   setFormPix: (v: string) => void;
+  formRecebedorPix: string;
+  setFormRecebedorPix: (v: string) => void;
   formDataAtendimento: string;
   setFormDataAtendimento: (v: string) => void;
   formObservacao: string;
@@ -2291,16 +2312,28 @@ function NovaSolicitacaoPanel({
           )}
 
           {/* PIX (Vinculado à Clínica) */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-[#999]">Chave PIX da Clínica</label>
-            <input
-              type="text"
-              value={formPix}
-              onChange={(e) => setFormPix(e.target.value)}
-              placeholder="CNPJ, E-mail, Telefone ou Aleatória"
-              className="w-full bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] placeholder:text-[#333] outline-none transition-colors"
-            />
-            <p className="text-[9px] text-[#555]">Esta chave será salva para a clínica selecionada.</p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-[#999]">Chave PIX da Clínica</label>
+              <input
+                type="text"
+                value={formPix}
+                onChange={(e) => setFormPix(e.target.value)}
+                placeholder="CNPJ, E-mail, Telefone ou Aleatória"
+                className="w-full bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] placeholder:text-[#333] outline-none transition-colors"
+              />
+              <p className="text-[9px] text-[#555]">Esta chave será salva para a clínica selecionada.</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-[#999]">Recebedor do PIX</label>
+              <input
+                type="text"
+                value={formRecebedorPix}
+                onChange={(e) => setFormRecebedorPix(e.target.value)}
+                placeholder="Nome de quem vai receber o PIX"
+                className="w-full bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] placeholder:text-[#333] outline-none transition-colors"
+              />
+            </div>
           </div>
 
           {/* Empresa (Oculto para Empresa) */}
@@ -2477,6 +2510,9 @@ function DetalhesPanel({
             <MetaRow icon={<Building2 size={14} />} label="Clínica" value={req.clinica} />
             {req.chave_pix && (
               <MetaRow icon={<DollarSign size={14} />} label="Chave PIX" value={req.chave_pix} />
+            )}
+            {req.recebedor_pix && (
+              <MetaRow icon={<Users size={14} />} label="Recebedor PIX" value={req.recebedor_pix} />
             )}
             <MetaRow icon={<Building2 size={14} />} label="Empresa Cliente" value={req.cliente} />
             <MetaRow icon={<Calendar size={14} />} label="Solicitado em" value={req.data} />
