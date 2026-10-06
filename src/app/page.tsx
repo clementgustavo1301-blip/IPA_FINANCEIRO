@@ -62,6 +62,7 @@ interface Solicitacao {
   nota_fiscal_size?: string;
   solicitado_por_nome?: string;
   aprovado_por_nome?: string;
+  observacao?: string;
 }
 
 type RightPanel = "none" | "nova" | "detalhes" | "editar";
@@ -154,6 +155,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [formValor, setFormValor] = useState("R$ 0,00");
   const [formPix, setFormPix] = useState("");
   const [formDataAtendimento, setFormDataAtendimento] = useState("");
+  const [formObservacao, setFormObservacao] = useState("");
 
   // Mock Access State
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
@@ -218,6 +220,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         nota_fiscal_size: s.nota_fiscal_size,
         solicitado_por_nome: s.solicitado_por_nome,
         aprovado_por_nome: s.aprovado_por_nome,
+        observacao: s.observacao,
       }));
       setSolicitacoes(formattedSols);
     }
@@ -403,6 +406,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setFormCidade("");
     setFormEstado("Selecione");
     setFormDataAtendimento("");
+    setFormObservacao("");
     setUploadedFile(null);
     setUploadedFileSize(null);
     setUploadedNF(null);
@@ -442,6 +446,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     } else {
       setFormDataAtendimento("");
     }
+    setFormObservacao(current.observacao || "");
     const c = mockClinicas.find(cl => cl.nome === current.clinica);
     if (c) {
       setFormPix(c.chave_pix || "");
@@ -551,6 +556,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
               qtd_colaboradores: finalColabs.length,
               valor: valorNumerico,
               data_atendimento: formDataAtendimento ? formDataAtendimento : null,
+              observacao: formObservacao ? formObservacao : null,
             }).eq('id', current.db_id);
 
             if (solError) throw solError;
@@ -580,6 +586,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             status_ipa: userRole === "empresa" ? "Pendente Aprovação" : "Enviado",
             status_financeiro: "Pendente",
             data_atendimento: formDataAtendimento ? formDataAtendimento : null,
+            observacao: formObservacao ? formObservacao : null,
             solicitado_por_nome: userName,
             created_by: session?.user?.id || null,
           }).select().single();
@@ -615,13 +622,13 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setFormColabs([]);
         setFormPix("");
         setFormDataAtendimento("");
+        setFormObservacao("");
       } catch (error: any) {
         alert("Erro ao salvar solicitação: " + error.message);
       } finally {
         setIsSubmitting(false);
       }
-    },
-    [formClinica, formCliente, formColabs, formValor, formPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, isSubmitting, userRole, userName, session, fetchDashboardData]
+    [formClinica, formCliente, formColabs, formValor, formPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, isSubmitting, userRole, userName, session, fetchDashboardData]
   );
 
   const togglePayment = useCallback(async () => {
@@ -1889,6 +1896,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormPix={setFormPix}
                   formDataAtendimento={formDataAtendimento}
                   setFormDataAtendimento={setFormDataAtendimento}
+                  formObservacao={formObservacao}
+                  setFormObservacao={setFormObservacao}
                   onSubmit={handleSubmit}
                   isSubmitting={isSubmitting}
                 />
@@ -1955,6 +1964,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormPix={setFormPix}
                   formDataAtendimento={formDataAtendimento}
                   setFormDataAtendimento={setFormDataAtendimento}
+                  formObservacao={formObservacao}
+                  setFormObservacao={setFormObservacao}
                   onSubmit={handleSubmit}
                   isSubmitting={isSubmitting}
                 />
@@ -2162,6 +2173,8 @@ function NovaSolicitacaoPanel({
   setFormPix,
   formDataAtendimento,
   setFormDataAtendimento,
+  formObservacao,
+  setFormObservacao,
   onSubmit,
   isSubmitting,
 }: {
@@ -2189,6 +2202,8 @@ function NovaSolicitacaoPanel({
   setFormPix: (v: string) => void;
   formDataAtendimento: string;
   setFormDataAtendimento: (v: string) => void;
+  formObservacao: string;
+  setFormObservacao: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   isSubmitting?: boolean;
   userRole?: "ipa" | "financeiro" | "empresa" | null;
@@ -2359,6 +2374,18 @@ function NovaSolicitacaoPanel({
             value={formValor}
             onChange={setFormValor}
           />
+
+          {/* Observação */}
+          <div className="space-y-1 mt-3">
+            <label className="text-[11px] font-semibold text-[#999]">Observação</label>
+            <textarea
+              value={formObservacao}
+              onChange={(e) => setFormObservacao(e.target.value)}
+              placeholder="Adicione observações adicionais se necessário..."
+              rows={3}
+              className="w-full bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] placeholder:text-[#333] outline-none transition-colors resize-none"
+            />
+          </div>
         </div>
 
         {/* Submit */}
@@ -2468,6 +2495,12 @@ function DetalhesPanel({
             )}
 
             <MetaRow icon={<DollarSign size={14} />} label="Valor" value={brl(req.valor)} />
+
+            {req.observacao && (
+              <div className="pt-2">
+                <MetaRow icon={<FileText size={14} />} label="Observação" value={req.observacao} />
+              </div>
+            )}
 
             {/* Ação rápida de Edição para quem tem permissão */}
             {((userRole === "ipa" && req.statusFinanceiro === "Pendente") ||
