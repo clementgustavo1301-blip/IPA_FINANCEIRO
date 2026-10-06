@@ -174,15 +174,9 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [notifAlertsEnabled, setNotifAlertsEnabled] = useState(true);
   const [notifSecEnabled, setNotifSecEnabled] = useState(false);
   const [notifEmail, setNotifEmail] = useState("");
+  const [toastData, setToastData] = useState<{title: string, desc: string} | null>(null);
 
-  // Fetch data on mount
-  useEffect(() => {
-    if (session) {
-      fetchDashboardData();
-    }
-  }, [session]);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     // 1. Fetch Clinicas
     const { data: clinicas } = await supabase.from('clinicas').select('*').order('nome');
     if (clinicas) setMockClinicas(clinicas);
@@ -256,7 +250,63 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         if (prefData.notif_email) setNotifEmail(prefData.notif_email);
       }
     }
-  };
+  }, [session]);
+
+  // Fetch data on mount
+  useEffect(() => {
+    if (session) {
+      fetchDashboardData();
+    }
+  }, [session, fetchDashboardData]);
+
+  // Realtime Notifications
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    if (!session || !userRole) return;
+
+    const channel = supabase
+      .channel('realtime_solicitacoes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'solicitacoes' }, (payload: any) => {
+        if (userRole === 'financeiro' || userRole === 'ipa') {
+          const title = 'Nova Solicitação!';
+          const desc = `Uma nova solicitação no valor de R$ ${Number(payload.new.valor).toFixed(2)} foi criada.`;
+          
+          setToastData({ title, desc });
+          setTimeout(() => setToastData(null), 5000);
+          
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, { body: desc });
+          }
+          fetchDashboardData();
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'solicitacoes' }, (payload: any) => {
+        if (payload.old.status_financeiro !== 'Pago' && payload.new.status_financeiro === 'Pago') {
+          if (userRole === 'ipa' || userRole === 'empresa') {
+            const title = 'Solicitação Paga!';
+            const desc = `O financeiro realizou o pagamento de uma solicitação.`;
+            
+            setToastData({ title, desc });
+            setTimeout(() => setToastData(null), 5000);
+            
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification(title, { body: desc });
+            }
+            fetchDashboardData();
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, userRole, fetchDashboardData]);
 
   const updatePreference = async (key: string, value: any) => {
     if (key === 'notif_alerts_enabled') setNotifAlertsEnabled(value);
@@ -2038,6 +2088,20 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             setModalCadastro("none");
           }}
         />
+      )}
+
+      {toastData && (
+        <div className="fixed top-4 right-4 z-[9999] bg-[#111] border border-[#222] shadow-2xl rounded-lg p-4 w-72 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1">
+              <h4 className="text-[13px] font-bold text-white mb-1">{toastData.title}</h4>
+              <p className="text-[11px] text-[#aaa] leading-snug">{toastData.desc}</p>
+            </div>
+            <button onClick={() => setToastData(null)} className="text-[#555] hover:text-white transition-colors shrink-0">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
