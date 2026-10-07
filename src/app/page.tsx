@@ -36,6 +36,8 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Pencil,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────────
@@ -171,10 +173,30 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const hasNovasSolicitacoes = userRole === "financeiro" && solicitacoes.some(s => s.statusFinanceiro === 'Pendente');
 
   // Configurações state
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [notifAlertsEnabled, setNotifAlertsEnabled] = useState(true);
   const [notifSecEnabled, setNotifSecEnabled] = useState(false);
   const [notifEmail, setNotifEmail] = useState("");
   const [toastData, setToastData] = useState<{title: string, desc: string} | null>(null);
+
+  const applyTheme = useCallback((t: "dark" | "light") => {
+    if (typeof document === 'undefined') return;
+    if (t === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
+
+  useEffect(() => {
+    const cachedTheme = (localStorage.getItem('sgf_theme') as "dark" | "light") || "dark";
+    setTheme(cachedTheme);
+    applyTheme(cachedTheme);
+  }, [applyTheme]);
 
   const fetchDashboardData = useCallback(async () => {
     // 1. Fetch Clinicas
@@ -238,19 +260,35 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
 
     // 5. Fetch User Preferences
     if (session?.user?.id) {
-      const { data: prefData } = await supabase
+      const { data: prefData, error: prefError } = await supabase
         .from('user_roles')
-        .select('notif_alerts_enabled, notif_sec_enabled, notif_email')
+        .select('notif_alerts_enabled, notif_sec_enabled, notif_email, theme')
         .eq('user_id', session.user.id)
         .single();
         
-      if (prefData) {
-        setNotifAlertsEnabled(prefData.notif_alerts_enabled ?? true);
-        setNotifSecEnabled(prefData.notif_sec_enabled ?? false);
-        if (prefData.notif_email) setNotifEmail(prefData.notif_email);
+      let finalPref: any = prefData;
+      if (prefError) {
+        const { data: fallbackData } = await supabase
+          .from('user_roles')
+          .select('notif_alerts_enabled, notif_sec_enabled, notif_email')
+          .eq('user_id', session.user.id)
+          .single();
+        finalPref = fallbackData;
+      }
+
+      if (finalPref) {
+        setNotifAlertsEnabled(finalPref.notif_alerts_enabled ?? true);
+        setNotifSecEnabled(finalPref.notif_sec_enabled ?? false);
+        if (finalPref.notif_email) setNotifEmail(finalPref.notif_email);
+        if ((finalPref as any).theme) {
+          const t = (finalPref as any).theme as "dark" | "light";
+          setTheme(t);
+          applyTheme(t);
+          localStorage.setItem('sgf_theme', t);
+        }
       }
     }
-  }, [session]);
+  }, [session, applyTheme]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -312,9 +350,22 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     if (key === 'notif_alerts_enabled') setNotifAlertsEnabled(value);
     if (key === 'notif_sec_enabled') setNotifSecEnabled(value);
     if (key === 'notif_email') setNotifEmail(value);
+    if (key === 'theme') {
+      const t = value as "dark" | "light";
+      setTheme(t);
+      applyTheme(t);
+      localStorage.setItem('sgf_theme', t);
+    }
 
     if (session?.user?.id) {
-      await supabase.from('user_roles').update({ [key]: value }).eq('user_id', session.user.id);
+      try {
+        const { error } = await supabase.from('user_roles').update({ [key]: value }).eq('user_id', session.user.id);
+        if (error) {
+          console.warn("Preferência salva localmente. Nota de banco:", error.message);
+        }
+      } catch (err) {
+        console.warn("Erro ao sincronizar preferência com o banco:", err);
+      }
     }
   };
 
@@ -1813,6 +1864,102 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                       <label className="text-[11px] font-semibold text-[#999]">Nível de Acesso (Role)</label>
                       <input type="text" value={userRole === "ipa" ? "Setor IPA (Criar Solicitações)" : "Financeiro (Aprovações)"} disabled className="w-full bg-[#050505] border border-[#111] rounded-lg px-3 py-2 text-[12px] text-[#555] outline-none cursor-not-allowed" />
                       <p className="text-[10px] text-[#555] mt-1">Seu nível de acesso é definido pelo administrador e gerido pelas políticas RLS do Supabase.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-[#0c0c0c] border border-[#1a1a1a] rounded-xl overflow-hidden">
+                  <div className="p-5 border-b border-[#1a1a1a]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sun size={16} className="text-[#3B82F6]" />
+                      <h3 className="text-[14px] font-semibold text-[#ddd]">Aparência e Tema</h3>
+                    </div>
+                    <p className="text-[11px] text-[#666]">
+                      Escolha o tema visual do sistema. Esta preferência fica salva na sua conta e será sincronizada em todos os seus aparelhos.
+                    </p>
+                  </div>
+                  
+                  <div className="p-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Opção Tema Escuro */}
+                      <button
+                        type="button"
+                        onClick={() => updatePreference('theme', 'dark')}
+                        className={`relative flex flex-col p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                          theme === 'dark'
+                            ? 'border-[#3B82F6] bg-[#111111] shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-[#3B82F6]'
+                            : 'border-[#1a1a1a] bg-[#080808] hover:border-[#333]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3 w-full">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] flex items-center justify-center text-[#eee]">
+                              <Moon size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-semibold text-[#eee]">Tema Escuro</p>
+                              <p className="text-[10px] text-[#888]">Padrão suave para a visão</p>
+                            </div>
+                          </div>
+                          {theme === 'dark' && (
+                            <div className="w-5 h-5 rounded-full bg-[#3B82F6] flex items-center justify-center text-white">
+                              <Check size={12} strokeWidth={2.5} />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Mini mockup do tema escuro */}
+                        <div className="w-full h-12 bg-[#080808] border border-[#1a1a1a] rounded-lg p-2 flex gap-2 overflow-hidden items-center">
+                          <div className="w-1/4 h-full bg-[#111] rounded border border-[#222]" />
+                          <div className="flex-1 flex flex-col gap-1.5 justify-center">
+                            <div className="w-3/4 h-1.5 bg-[#333] rounded" />
+                            <div className="w-1/2 h-1.5 bg-[#222] rounded" />
+                          </div>
+                          <div className="w-6 h-6 rounded bg-[#3B82F6]/30 flex items-center justify-center text-[#3B82F6] text-[8px] font-bold">
+                            SGF
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Opção Tema Claro */}
+                      <button
+                        type="button"
+                        onClick={() => updatePreference('theme', 'light')}
+                        className={`relative flex flex-col p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                          theme === 'light'
+                            ? 'border-[#3B82F6] bg-[#111111] shadow-[0_0_20px_rgba(59,130,246,0.15)] ring-1 ring-[#3B82F6]'
+                            : 'border-[#1a1a1a] bg-[#080808] hover:border-[#333]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3 w-full">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-[#1a1a1a] flex items-center justify-center text-[#fbbf24]">
+                              <Sun size={16} />
+                            </div>
+                            <div>
+                              <p className="text-[13px] font-semibold text-[#eee]">Tema Claro</p>
+                              <p className="text-[10px] text-[#888]">Visual limpo e brilhante</p>
+                            </div>
+                          </div>
+                          {theme === 'light' && (
+                            <div className="w-5 h-5 rounded-full bg-[#3B82F6] flex items-center justify-center text-white">
+                              <Check size={12} strokeWidth={2.5} />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Mini mockup do tema claro */}
+                        <div className="w-full h-12 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg p-2 flex gap-2 overflow-hidden items-center">
+                          <div className="w-1/4 h-full bg-[#FFFFFF] rounded border border-[#CBD5E1]" />
+                          <div className="flex-1 flex flex-col gap-1.5 justify-center">
+                            <div className="w-3/4 h-1.5 bg-[#94A3B8] rounded" />
+                            <div className="w-1/2 h-1.5 bg-[#CBD5E1] rounded" />
+                          </div>
+                          <div className="w-6 h-6 rounded bg-[#3B82F6]/20 flex items-center justify-center text-[#2563EB] text-[8px] font-bold">
+                            SGF
+                          </div>
+                        </div>
+                      </button>
                     </div>
                   </div>
                 </div>

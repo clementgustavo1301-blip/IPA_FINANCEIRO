@@ -19,8 +19,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" className={`dark ${inter.variable}`}>
-      <body className="bg-[#080808] text-[#F5F5F5] font-sans antialiased overflow-x-hidden min-h-screen">
+    <html lang="pt-BR" className={`dark ${inter.variable}`} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var savedTheme = localStorage.getItem('sgf_theme');
+                if (savedTheme === 'light') {
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.classList.add('light');
+                  document.documentElement.setAttribute('data-theme', 'light');
+                } else {
+                  document.documentElement.classList.remove('light');
+                  document.documentElement.classList.add('dark');
+                  document.documentElement.setAttribute('data-theme', 'dark');
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
+      <body className="bg-[#080808] text-[#F5F5F5] font-sans antialiased overflow-x-hidden min-h-screen transition-colors duration-200">
         {children}
       </body>
     </html>
