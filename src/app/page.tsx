@@ -38,6 +38,7 @@ import {
   Pencil,
   Sun,
   Moon,
+  Clock,
 } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────────
@@ -433,9 +434,12 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
 
   // Stats
   const totalSolicitacoes = solicitacoes.length;
-  const totalAprovadas = solicitacoes.filter((s) => s.statusIPA === "Enviado").length;
-  const totalEmPagamento = solicitacoes.filter((s) => s.statusFinanceiro === "Pendente" && s.statusIPA === "Enviado").length;
+  const totalPendentes = solicitacoes.filter((s) => s.statusFinanceiro === "Pendente" && s.statusIPA !== "Rascunho").length;
+  const totalPagas = solicitacoes.filter((s) => s.statusFinanceiro === "Pago").length;
+  const totalEmPagamento = totalPendentes; // Compatibilidade com aba financeiro
   const valorTotal = solicitacoes.reduce((sum, s) => sum + s.valor, 0);
+  const valorPago = solicitacoes.filter((s) => s.statusFinanceiro === "Pago").reduce((sum, s) => sum + s.valor, 0);
+  const valorPendente = solicitacoes.filter((s) => s.statusFinanceiro === "Pendente" && s.statusIPA !== "Rascunho").reduce((sum, s) => sum + s.valor, 0);
 
   // Date Helpers for Trends
   const now = new Date();
@@ -467,17 +471,9 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const solLastMonth = solicitacoes.filter(s => isLastMonth(s.created_at)).length;
   const trendSolicitacoes = getTrend(solThisMonth, solLastMonth);
 
-  const aprovadasThisMonth = solicitacoes.filter(s => isThisMonth(s.created_at) && s.statusIPA === "Enviado").length;
-  const aprovadasLastMonth = solicitacoes.filter(s => isLastMonth(s.created_at) && s.statusIPA === "Enviado").length;
-  const trendAprovadas = getTrend(aprovadasThisMonth, aprovadasLastMonth);
-
-  const emPagamentoThisMonth = solicitacoes.filter(s => isThisMonth(s.created_at) && s.statusFinanceiro === "Pendente" && s.statusIPA === "Enviado").length;
-  const emPagamentoLastMonth = solicitacoes.filter(s => isLastMonth(s.created_at) && s.statusFinanceiro === "Pendente" && s.statusIPA === "Enviado").length;
-  const trendEmPagamento = getTrend(emPagamentoThisMonth, emPagamentoLastMonth);
-
-  const valorThisMonth = solicitacoes.filter(s => isThisMonth(s.created_at)).reduce((sum, s) => sum + s.valor, 0);
-  const valorLastMonth = solicitacoes.filter(s => isLastMonth(s.created_at)).reduce((sum, s) => sum + s.valor, 0);
-  const trendValor = getTrend(valorThisMonth, valorLastMonth);
+  const trendPendentes = `${brl(valorPendente)} a pagar`;
+  const trendPagas = `${brl(valorPago)} pagos`;
+  const trendValor = `${brl(valorPago)} pago • ${brl(valorPendente)} pend.`;
 
   // Handlers
   const openNovaSolicitacao = useCallback(() => {
@@ -1034,21 +1030,24 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                     icon={<FileText size={13} strokeWidth={1.5} />}
                   />
                   <StatCard
-                    label="Aprovadas"
-                    value={String(totalAprovadas).padStart(2, "0")}
-                    trend={trendAprovadas}
-                    icon={<CheckCircle2 size={13} strokeWidth={1.5} />}
+                    label="Pendentes"
+                    value={String(totalPendentes).padStart(2, "0")}
+                    trend={trendPendentes}
+                    trendColor={totalPendentes > 0 ? "text-[#fbbf24]" : "text-[#2dd4bf]"}
+                    icon={<Clock size={13} strokeWidth={1.5} />}
                   />
                   <StatCard
-                    label="Em pagamento"
-                    value={String(totalEmPagamento).padStart(2, "0")}
-                    trend={trendEmPagamento}
-                    icon={<CreditCard size={13} strokeWidth={1.5} />}
+                    label="Pagas"
+                    value={String(totalPagas).padStart(2, "0")}
+                    trend={trendPagas}
+                    trendColor="text-[#2dd4bf]"
+                    icon={<CheckCircle2 size={13} strokeWidth={1.5} />}
                   />
                   <StatCard
                     label="Valor total"
                     value={brl(valorTotal)}
                     trend={trendValor}
+                    trendColor="text-[#888]"
                     icon={<DollarSign size={13} strokeWidth={1.5} />}
                     isWide
                   />
@@ -1490,20 +1489,23 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   <StatCard
                     label="Pendentes"
-                    value={String(totalEmPagamento).padStart(2, "0")}
-                    trend="Requer atenção"
-                    icon={<FileText size={13} strokeWidth={1.5} />}
+                    value={String(totalPendentes).padStart(2, "0")}
+                    trend={totalPendentes > 0 ? "Requer atenção" : "Em dia"}
+                    trendColor={totalPendentes > 0 ? "text-[#fbbf24]" : "text-[#2dd4bf]"}
+                    icon={<Clock size={13} strokeWidth={1.5} />}
                   />
                   <StatCard
                     label="Pagas"
-                    value={String(solicitacoes.filter(s => s.statusFinanceiro === 'Pago').length).padStart(2, "0")}
+                    value={String(totalPagas).padStart(2, "0")}
                     trend="Tudo certo"
+                    trendColor="text-[#2dd4bf]"
                     icon={<CheckCircle2 size={13} strokeWidth={1.5} />}
                   />
                   <StatCard
                     label="Valor a pagar"
-                    value={brl(solicitacoes.filter(s => s.statusFinanceiro === 'Pendente').reduce((sum, s) => sum + s.valor, 0))}
+                    value={brl(valorPendente)}
                     trend="Total pendente"
+                    trendColor="text-[#888]"
                     icon={<DollarSign size={13} strokeWidth={1.5} />}
                     isWide
                     className="col-span-2 sm:col-span-1"
@@ -2266,6 +2268,7 @@ function StatCard({
   icon,
   isWide,
   className,
+  trendColor,
 }: {
   label: string;
   value: string;
@@ -2273,6 +2276,7 @@ function StatCard({
   icon: React.ReactNode;
   isWide?: boolean;
   className?: string;
+  trendColor?: string;
 }) {
   return (
     <div className={`bg-[#0c0c0c] border border-[#1a1a1a] rounded-xl p-2.5 sm:p-4 flex flex-col justify-between min-h-[76px] sm:min-h-[110px] group hover:border-[#252525] transition-colors ${className || ""}`}>
@@ -2286,7 +2290,7 @@ function StatCard({
         <p className={`font-semibold text-[#eee] tracking-tight leading-none ${isWide ? "text-[14px] sm:text-[20px]" : "text-[17px] sm:text-[26px]"}`}>
           {value}
         </p>
-        <p className="text-[9px] sm:text-[10px] text-[#2dd4bf] font-medium mt-1 sm:mt-1.5 truncate">{trend}</p>
+        <p className={`text-[9px] sm:text-[10px] font-medium mt-1 sm:mt-1.5 truncate ${trendColor || "text-[#2dd4bf]"}`}>{trend}</p>
       </div>
     </div>
   );
