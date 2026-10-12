@@ -1,0 +1,10 @@
+{
+  "daily_limit": 15,
+  "min_delay_sec": 60,
+  "max_delay_sec": 120,
+  "typing_speed_ms": 200,
+  "min_typing_sec": 2,
+  "max_typing_sec": 15,
+  "sent_today": 1,
+  "last_reset_date": "2026-10-12"
+}

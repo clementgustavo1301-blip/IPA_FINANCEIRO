@@ -8,7 +8,9 @@ import html2canvas from "html2canvas";
 import { supabase } from "@/lib/supabase";
 import AuthScreen from "@/components/AuthScreen";
 import IpaLogo from "@/components/IpaLogo";
+import WhatsAppTab from "@/components/WhatsAppTab";
 import {
+  MessageSquare,
   LayoutDashboard,
   FileText,
   DollarSign,
@@ -72,7 +74,7 @@ interface Solicitacao {
 }
 
 type RightPanel = "none" | "nova" | "detalhes" | "editar";
-type NavTab = "dashboard" | "ipa" | "financeiro" | "relatorios" | "configuracoes" | "acessos";
+type NavTab = "dashboard" | "ipa" | "financeiro" | "relatorios" | "configuracoes" | "acessos" | "whatsapp";
 
 /* ──────────────────────────────────────────────────────────────
    MOCK DATA (matching design spec)
@@ -178,6 +180,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [notifAlertsEnabled, setNotifAlertsEnabled] = useState(true);
   const [notifSecEnabled, setNotifSecEnabled] = useState(false);
   const [notifEmail, setNotifEmail] = useState("");
+  const [notifWhatsApp, setNotifWhatsApp] = useState("");
   const [toastData, setToastData] = useState<{title: string, desc: string} | null>(null);
 
   const applyTheme = useCallback((t: "dark" | "light") => {
@@ -263,7 +266,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     if (session?.user?.id) {
       const { data: prefData, error: prefError } = await supabase
         .from('user_roles')
-        .select('notif_alerts_enabled, notif_sec_enabled, notif_email, theme')
+        .select('notif_alerts_enabled, notif_sec_enabled, notif_email, notif_whatsapp, theme')
         .eq('user_id', session.user.id)
         .single();
         
@@ -271,7 +274,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       if (prefError) {
         const { data: fallbackData } = await supabase
           .from('user_roles')
-          .select('notif_alerts_enabled, notif_sec_enabled, notif_email')
+          .select('notif_alerts_enabled, notif_sec_enabled, notif_email, notif_whatsapp')
           .eq('user_id', session.user.id)
           .single();
         finalPref = fallbackData;
@@ -281,6 +284,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setNotifAlertsEnabled(finalPref.notif_alerts_enabled ?? true);
         setNotifSecEnabled(finalPref.notif_sec_enabled ?? false);
         if (finalPref.notif_email) setNotifEmail(finalPref.notif_email);
+        if (finalPref.notif_whatsapp) setNotifWhatsApp(finalPref.notif_whatsapp);
         if ((finalPref as any).theme) {
           const t = (finalPref as any).theme as "dark" | "light";
           setTheme(t);
@@ -351,6 +355,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     if (key === 'notif_alerts_enabled') setNotifAlertsEnabled(value);
     if (key === 'notif_sec_enabled') setNotifSecEnabled(value);
     if (key === 'notif_email') setNotifEmail(value);
+    if (key === 'notif_whatsapp') setNotifWhatsApp(value);
     if (key === 'theme') {
       const t = value as "dark" | "light";
       setTheme(t);
@@ -767,6 +772,62 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
       alert("Erro ao confirmar pagamento: " + error.message);
       // Revert if error
       await fetchDashboardData();
+      return;
+    }
+
+    // Se marcou como Pago, notificar o setor IPA via WhatsApp
+    if (novoStatus === "Pago") {
+      (async () => {
+        try {
+          const { data: ipaUsers } = await supabase
+            .from('user_roles')
+            .select('notif_whatsapp')
+            .eq('role', 'ipa')
+            .not('notif_whatsapp', 'is', null);
+
+          const phones = (ipaUsers || [])
+            .map((u: any) => u.notif_whatsapp)
+            .filter(Boolean);
+
+          const uniquePhones = Array.from(new Set(phones)) as string[];
+
+          if (uniquePhones.length > 0) {
+            let compUrl = "";
+            if (current.comprovante_url) {
+              const { data: signData } = await supabase.storage
+                .from('comprovantes')
+                .createSignedUrl(current.comprovante_url, 60 * 60 * 24);
+              compUrl = signData?.signedUrl || "";
+            }
+
+            const msgText = `*CONFIRMAÇÃO DE PAGAMENTO - SGF*\n\n` +
+              `A solicitação *#${current.id}* foi marcada como *PAGA* pelo Financeiro.\n\n` +
+              `*Clínica:* ${current.clinica}\n` +
+              `*Empresa Cliente:* ${current.cliente}\n` +
+              `*Valor:* ${brl(current.valor)}\n` +
+              `*Data Atendimento:* ${current.data_atendimento || current.data}\n` +
+              (current.chave_pix ? `*Chave PIX:* ${current.chave_pix}\n` : '') +
+              (current.recebedor_pix ? `*Recebedor:* ${current.recebedor_pix}\n` : '') +
+              (compUrl ? `\n*Comprovante de Pagamento:*\n${compUrl}\n` : '\n(Comprovante anexado no sistema)\n') +
+              `\n_Mensagem automática do Sistema de Gestão Financeira IPA._`;
+
+            for (const phone of uniquePhones) {
+              fetch('/api/whatsapp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  phone,
+                  message: msgText,
+                  media_url: compUrl || undefined,
+                  solicitacao_id: current.id
+                })
+              }).catch(e => console.error("Erro envio WhatsApp:", e));
+            }
+          }
+        } catch (notifErr) {
+          console.error("Erro ao preparar notificação WhatsApp:", notifErr);
+        }
+      })();
     }
   }, [selectedId, solicitacoes]);
 
@@ -848,6 +909,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     ...(userRole === "empresa" ? [{ id: "ipa" as NavTab, icon: <FileText size={18} strokeWidth={1.5} />, label: "Minhas Solicitações" }] : []),
     ...(userRole !== "empresa" ? [{ id: "relatorios" as NavTab, icon: <BarChart3 size={18} strokeWidth={1.5} />, label: "Relatórios" }] : []),
     ...(userRole === "ipa" ? [{ id: "acessos" as NavTab, icon: <Users size={18} strokeWidth={1.5} />, label: "Acessos" }] : []),
+    ...(userRole === "ipa" ? [{ id: "whatsapp" as NavTab, icon: <MessageSquare size={18} strokeWidth={1.5} />, label: "WhatsApp" }] : []),
     { id: "configuracoes", icon: <Settings size={18} strokeWidth={1.5} />, label: "Configurações" },
   ];
 
@@ -2069,6 +2131,16 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   )}
                 </div>
               </motion.div>
+            )}
+
+            {activeTab === "whatsapp" && userRole === "ipa" && (
+              <WhatsAppTab
+                userRole={userRole}
+                savedNotificationPhone={notifWhatsApp}
+                onSaveNotificationPhone={async (phone: string) => {
+                  await updatePreference('notif_whatsapp', phone);
+                }}
+              />
             )}
             </AnimatePresence>
           </section>
