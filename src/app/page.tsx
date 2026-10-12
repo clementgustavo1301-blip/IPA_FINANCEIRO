@@ -909,7 +909,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     ...(userRole === "empresa" ? [{ id: "ipa" as NavTab, icon: <FileText size={18} strokeWidth={1.5} />, label: "Minhas Solicitações" }] : []),
     ...(userRole !== "empresa" ? [{ id: "relatorios" as NavTab, icon: <BarChart3 size={18} strokeWidth={1.5} />, label: "Relatórios" }] : []),
     ...(userRole === "ipa" ? [{ id: "acessos" as NavTab, icon: <Users size={18} strokeWidth={1.5} />, label: "Acessos" }] : []),
-    ...(userRole === "ipa" ? [{ id: "whatsapp" as NavTab, icon: <MessageSquare size={18} strokeWidth={1.5} />, label: "WhatsApp" }] : []),
+    ...(userRole === "ipa" || userRole === "financeiro" ? [{ id: "whatsapp" as NavTab, icon: <MessageSquare size={18} strokeWidth={1.5} />, label: "WhatsApp" }] : []),
     { id: "configuracoes", icon: <Settings size={18} strokeWidth={1.5} />, label: "Configurações" },
   ];
 
@@ -2133,7 +2133,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
               </motion.div>
             )}
 
-            {activeTab === "whatsapp" && userRole === "ipa" && (
+            {activeTab === "whatsapp" && (userRole === "ipa" || userRole === "financeiro") && (
               <WhatsAppTab
                 userRole={userRole}
                 savedNotificationPhone={notifWhatsApp}
