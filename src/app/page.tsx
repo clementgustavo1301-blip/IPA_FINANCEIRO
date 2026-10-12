@@ -779,24 +779,33 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     if (novoStatus === "Pago") {
       (async () => {
         try {
-          const { data: ipaUsers } = await supabase
-            .from('user_roles')
-            .select('notif_whatsapp')
-            .eq('role', 'ipa')
-            .not('notif_whatsapp', 'is', null);
+          // 1. Busca números de WhatsApp do setor IPA via RPC (com SECURITY DEFINER para não ser bloqueado pelo RLS do Financeiro)
+          let phones: string[] = [];
+          const { data: rpcData, error: rpcErr } = await supabase.rpc('get_ipa_whatsapp_phones');
+          
+          if (!rpcErr && rpcData && rpcData.length > 0) {
+            phones = rpcData.map((r: any) => r.notif_whatsapp || r.phone || r).filter(Boolean);
+          } else {
+            const { data: ipaUsers } = await supabase
+              .from('user_roles')
+              .select('notif_whatsapp')
+              .eq('role', 'ipa')
+              .not('notif_whatsapp', 'is', null);
 
-          const phones = (ipaUsers || [])
-            .map((u: any) => u.notif_whatsapp)
-            .filter(Boolean);
+            phones = (ipaUsers || [])
+              .map((u: any) => u.notif_whatsapp)
+              .filter(Boolean);
+          }
 
           const uniquePhones = Array.from(new Set(phones)) as string[];
 
           if (uniquePhones.length > 0) {
             let compUrl = "";
-            if (current.comprovante_url) {
+            const fileTarget = uploadedFile || current.comprovante_url;
+            if (fileTarget) {
               const { data: signData } = await supabase.storage
                 .from('comprovantes')
-                .createSignedUrl(current.comprovante_url, 60 * 60 * 24);
+                .createSignedUrl(fileTarget, 60 * 60 * 24);
               compUrl = signData?.signedUrl || "";
             }
 
@@ -821,8 +830,19 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   media_url: compUrl || undefined,
                   solicitacao_id: current.id
                 })
-              }).catch(e => console.error("Erro envio WhatsApp:", e));
+              })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) {
+                  console.log(`[WhatsApp] Notificação da solicitação #${current.id} enviada para a fila (+${phone}):`, data);
+                } else {
+                  console.error(`[WhatsApp] Falha ao enviar para +${phone}:`, data.error);
+                }
+              })
+              .catch(e => console.error("Erro envio WhatsApp:", e));
             }
+          } else {
+            console.warn("[WhatsApp] Nenhum telefone de WhatsApp cadastrado para os usuários do setor IPA.");
           }
         } catch (notifErr) {
           console.error("Erro ao preparar notificação WhatsApp:", notifErr);
