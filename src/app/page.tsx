@@ -3212,11 +3212,12 @@ function CadastroEmpresaModal({
 }: {
   type: "clinica" | "empresa",
   onClose: () => void,
-  onSuccess: (data: { id: string, nome: string, uf?: string, municipio?: string, chave_pix?: string }) => void
+  onSuccess: (data: { id: string, nome: string, uf?: string, municipio?: string, chave_pix?: string, recebedor_pix?: string }) => void
 }) {
   const [cnpj, setCnpj] = useState("");
   const [loading, setLoading] = useState(false);
   const [dados, setDados] = useState<any>(null);
+  const [manualMode, setManualMode] = useState(false);
 
   const fetchCnpj = async () => {
     const cleanCnpj = cnpj.replace(/\D/g, "");
@@ -3224,12 +3225,12 @@ function CadastroEmpresaModal({
     
     setLoading(true);
     try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
-      if (!res.ok) throw new Error("CNPJ não encontrado");
+      const res = await fetch(`/api/cnpj?cnpj=${cleanCnpj}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "CNPJ não encontrado");
       setDados(data);
-    } catch (e) {
-      alert("Erro ao buscar CNPJ. Verifique o número e tente novamente.");
+    } catch (e: any) {
+      alert(e.message || "Erro ao buscar CNPJ. Verifique o número e tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -3238,35 +3239,56 @@ function CadastroEmpresaModal({
   const handleSave = async () => {
     if (!dados) return;
     
+    const cleanCnpj = (dados.cnpj || cnpj || "").replace(/\D/g, "").slice(0, 14);
+    const cleanCep = dados.cep ? String(dados.cep).replace(/\D/g, "").slice(0, 8) : null;
+    const cleanEstado = dados.uf ? String(dados.uf).trim().slice(0, 2).toUpperCase() : null;
+
     setLoading(true);
     try {
       const table = type === "clinica" ? "clinicas" : "empresas_clientes";
       const insertData = {
-        cnpj: dados.cnpj,
-        razao_social: dados.razao_social || dados.nome_fantasia || dados.nome,
+        cnpj: cleanCnpj,
+        razao_social: dados.razao_social || dados.nome_fantasia || dados.nome || "Sem Nome",
         nome: dados.nome_fantasia || dados.razao_social || dados.nome || "Sem Nome",
-        cep: dados.cep,
-        logradouro: dados.logradouro,
-        numero: dados.numero,
-        bairro: dados.bairro,
-        cidade: dados.municipio,
-        estado: dados.uf,
-        telefone: dados.ddd_telefone_1 || dados.telefone,
-        email: dados.email
+        cep: cleanCep,
+        logradouro: dados.logradouro || null,
+        numero: dados.numero || null,
+        bairro: dados.bairro || null,
+        cidade: dados.municipio || null,
+        estado: cleanEstado,
+        telefone: dados.ddd_telefone_1 || dados.telefone || null,
+        email: dados.email || null
       };
 
+      let resData;
       const { data, error } = await supabase.from(table).insert(insertData).select().single();
 
-      if (error) throw error;
+      if (error) {
+        // Se já existe cadastrado com este CNPJ, seleciona o existente
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique')) {
+          const { data: existing, error: fetchErr } = await supabase.from(table).select().eq('cnpj', cleanCnpj).single();
+          if (existing && !fetchErr) {
+            resData = existing;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        resData = data;
+      }
 
       onSuccess({ 
-        id: data.id, 
-        nome: data.nome,
-        uf: data.estado,
-        municipio: data.cidade
+        id: resData.id, 
+        nome: resData.nome,
+        uf: resData.estado,
+        municipio: resData.cidade,
+        chave_pix: resData.chave_pix,
+        recebedor_pix: resData.recebedor_pix
       });
     } catch (e: any) {
-      alert("Erro ao salvar: " + e.message);
+      alert("Erro ao salvar: " + (e.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
     }
@@ -3282,16 +3304,46 @@ function CadastroEmpresaModal({
           <button onClick={onClose} type="button" className="text-[#555] hover:text-[#eee] transition-colors"><X size={16} /></button>
         </div>
         
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
           {/* CNPJ Search */}
           <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-[#999]">CNPJ da {type === "clinica" ? "Clínica" : "Empresa"}</label>
+            <div className="flex justify-between items-center">
+              <label className="text-[11px] font-semibold text-[#999]">CNPJ da {type === "clinica" ? "Clínica" : "Empresa"}</label>
+              {!manualMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualMode(true);
+                    setDados({
+                      razao_social: "",
+                      nome_fantasia: "",
+                      municipio: "",
+                      uf: "",
+                      telefone: "",
+                      logradouro: "",
+                      numero: "",
+                      bairro: "",
+                      cep: ""
+                    });
+                  }}
+                  className="text-[11px] text-[#3B82F6] hover:underline"
+                >
+                  Preencher manualmente
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={cnpj}
                 onChange={(e) => setCnpj(e.target.value)}
-                placeholder="Apenas números..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    fetchCnpj();
+                  }
+                }}
+                placeholder="Ex: 30.712.156/0001-66 ou apenas números..."
                 className="flex-1 bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-4 py-2.5 text-[13px] text-[#ccc] outline-none transition-colors"
                 maxLength={18}
               />
@@ -3306,27 +3358,87 @@ function CadastroEmpresaModal({
             </div>
           </div>
 
-          {/* Fetched Data Display */}
+          {/* Fetched Data Display / Editable Form */}
           {dados && (
             <div className="bg-[#080808] border border-[#1a1a1a] rounded-xl p-5 space-y-4 animate-in slide-in-from-bottom-2 duration-300">
-              <div>
-                <p className="text-[10px] text-[#666] uppercase font-semibold mb-1">Razão Social</p>
-                <p className="text-[13px] text-[#eee] font-medium">{dados.razao_social}</p>
+              <div className="flex items-center justify-between pb-2 border-b border-[#141414]">
+                <span className="text-[11px] font-semibold text-[#888]">Dados Identificados</span>
+                {dados.origem && (
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Origem: {dados.origem.toUpperCase()}
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+
+              <div>
+                <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Nome Fantasia / Nome</label>
+                <input
+                  type="text"
+                  value={dados.nome_fantasia || dados.razao_social || ""}
+                  onChange={(e) => setDados({ ...dados, nome_fantasia: e.target.value })}
+                  className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[13px] text-[#eee] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Razão Social</label>
+                <input
+                  type="text"
+                  value={dados.razao_social || ""}
+                  onChange={(e) => setDados({ ...dados, razao_social: e.target.value })}
+                  className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#bbb] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] text-[#666] uppercase font-semibold mb-1">Nome Fantasia</p>
-                  <p className="text-[12px] text-[#ccc]">{dados.nome_fantasia || "Não informado"}</p>
+                  <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Cidade / Município</label>
+                  <input
+                    type="text"
+                    value={dados.municipio || ""}
+                    onChange={(e) => setDados({ ...dados, municipio: e.target.value })}
+                    className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] outline-none"
+                  />
                 </div>
                 <div>
-                  <p className="text-[10px] text-[#666] uppercase font-semibold mb-1">Telefone</p>
-                  <p className="text-[12px] text-[#ccc]">{dados.ddd_telefone_1 || "Não informado"}</p>
+                  <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Estado (UF)</label>
+                  <input
+                    type="text"
+                    value={dados.uf || ""}
+                    maxLength={2}
+                    onChange={(e) => setDados({ ...dados, uf: e.target.value.toUpperCase() })}
+                    className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] outline-none"
+                  />
                 </div>
-                <div className="col-span-2">
-                  <p className="text-[10px] text-[#666] uppercase font-semibold mb-1">Endereço Completo</p>
-                  <p className="text-[12px] text-[#ccc]">{`${dados.logradouro}, ${dados.numero}${dados.complemento ? ' - ' + dados.complemento : ''} - ${dados.bairro}, ${dados.municipio} - ${dados.uf}`}</p>
-                  <p className="text-[11px] text-[#666] mt-0.5">CEP: {dados.cep}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Telefone</label>
+                  <input
+                    type="text"
+                    value={dados.ddd_telefone_1 || dados.telefone || ""}
+                    onChange={(e) => setDados({ ...dados, ddd_telefone_1: e.target.value, telefone: e.target.value })}
+                    className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] outline-none"
+                  />
                 </div>
+                <div>
+                  <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">CEP</label>
+                  <input
+                    type="text"
+                    value={dados.cep || ""}
+                    maxLength={9}
+                    onChange={(e) => setDados({ ...dados, cep: e.target.value })}
+                    className="w-full bg-[#0c0c0c] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-[#666] uppercase font-semibold mb-1 block">Logradouro / Número / Bairro</label>
+                <p className="text-[12px] text-[#aaa] bg-[#0c0c0c] border border-[#1a1a1a] rounded-lg px-3 py-2">
+                  {[dados.logradouro, dados.numero, dados.bairro].filter(Boolean).join(", ") || "Não informado"}
+                </p>
               </div>
             </div>
           )}
@@ -3337,10 +3449,10 @@ function CadastroEmpresaModal({
           <button 
             type="button"
             onClick={handleSave} 
-            disabled={!dados}
-            className="bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-[#1a1a1a] disabled:text-[#555] text-white px-6 py-2 rounded-lg text-[12px] font-semibold transition-colors"
+            disabled={!dados || loading}
+            className="bg-[#3B82F6] hover:bg-[#2563EB] disabled:bg-[#1a1a1a] disabled:text-[#555] text-white px-6 py-2 rounded-lg text-[12px] font-semibold transition-colors flex items-center gap-2"
           >
-            Cadastrar e Selecionar
+            {loading ? "Salvando..." : "Cadastrar e Selecionar"}
           </button>
         </div>
       </div>

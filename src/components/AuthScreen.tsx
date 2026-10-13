@@ -72,7 +72,7 @@ export default function AuthScreen() {
     const cleanCnpj = empresaCnpj.replace(/\D/g, "");
     if (cleanCnpj.length === 14) {
       try {
-        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`);
+        const res = await fetch(`/api/cnpj?cnpj=${cleanCnpj}`);
         if (res.ok) {
           const data = await res.json();
           if (data.razao_social) {

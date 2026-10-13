@@ -253,9 +253,25 @@ func resolveContactJID(ctx context.Context, phone string) (types.JID, string, er
 	results, err := client.IsOnWhatsApp(ctx, queryNumbers)
 	if err == nil && len(results) > 0 {
 		for _, res := range results {
-			if res.IsIn && !res.JID.IsEmpty() {
-				log.Printf("[WhatsApp] Contato verificado com sucesso! Query: %s -> JID Canônico: %s", res.Query, res.JID.String())
-				return res.JID, res.JID.User, nil
+			if res.IsIn {
+				// No WhatsApp Multi-Device, 1-on-1 chats SEMPRE usam @s.whatsapp.net (Phone Number JID).
+				// res.JID frequentemente contém o identificador LID (@lid), que NÃO deve ser usado como destinatário do chat.
+				var targetJID types.JID
+				var targetPhone string
+
+				if !res.PhoneNumber.IsEmpty() && res.PhoneNumber.Server == types.DefaultUserServer {
+					targetJID = res.PhoneNumber
+					targetPhone = res.PhoneNumber.User
+				} else if res.JID.Server == types.DefaultUserServer {
+					targetJID = res.JID
+					targetPhone = res.JID.User
+				} else {
+					targetPhone = strings.TrimPrefix(res.Query, "+")
+					targetJID = types.NewJID(targetPhone, types.DefaultUserServer)
+				}
+
+				log.Printf("[WhatsApp] Contato verificado! Query: %s -> JID Destino: %s (LID: %s)", res.Query, targetJID.String(), res.JID.String())
+				return targetJID, targetPhone, nil
 			}
 		}
 		return types.EmptyJID, "", fmt.Errorf("o número +%s não possui conta ativa no WhatsApp (verifique o DDD e o número)", cleanPhone)
