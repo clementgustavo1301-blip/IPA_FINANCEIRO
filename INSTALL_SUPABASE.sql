@@ -31,6 +31,7 @@ create table public.solicitacoes (
     valor numeric(10, 2) not null default 0.00,
     status_ipa status_ipa not null default 'Rascunho',
     status_financeiro status_financeiro not null default 'Pendente',
+    urgencia text not null default 'nao_urgente' check (urgencia in ('urgente', 'media', 'nao_urgente')),
     comprovante_url text,
     created_by uuid references auth.users(id) on delete set null,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,

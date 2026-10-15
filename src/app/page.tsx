@@ -41,11 +41,147 @@ import {
   Sun,
   Moon,
   Clock,
+  Zap,
+  AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 
 /* ──────────────────────────────────────────────────────────────
    TYPES
    ────────────────────────────────────────────────────────────── */
+
+type UrgenciaNivel = "urgente" | "media" | "nao_urgente";
+
+function calcularUrgenciaPorData(dataAtendimento?: string | null): UrgenciaNivel {
+  if (!dataAtendimento) return "nao_urgente";
+
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const currentDate = today.getDate();
+  const todayMidnight = new Date(currentYear, currentMonth, currentDate).getTime();
+
+  let dateStr = dataAtendimento.trim();
+  let y = 0, m = 0, d = 0;
+
+  if (dateStr.includes('/')) {
+    // DD/MM/YYYY
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      d = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      y = parseInt(parts[2], 10);
+    }
+  } else {
+    // YYYY-MM-DD
+    if (dateStr.includes('T')) {
+      dateStr = dateStr.split('T')[0];
+    }
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      d = parseInt(parts[2], 10);
+    }
+  }
+
+  if (!y || isNaN(m) || !d) return "nao_urgente";
+
+  const targetMidnight = new Date(y, m, d).getTime();
+  const diffMs = targetMidnight - todayMidnight;
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return "urgente"; // Para hoje (ou atrasado)
+  } else if (diffDays <= 2) {
+    return "media"; // Em até 2 dias
+  } else {
+    return "nao_urgente"; // 3 dias ou mais
+  }
+}
+
+
+function formatUrgenciaInfo(urgencia?: string): { label: string; prazo: string; cor: "red" | "amber" | "emerald" } {
+  switch (urgencia) {
+    case "urgente":
+      return { label: "Urgente", prazo: "Hoje", cor: "red" };
+    case "media":
+      return { label: "Média", prazo: "2 dias", cor: "amber" };
+    case "nao_urgente":
+    default:
+      return { label: "Não Urgente", prazo: "3 dias", cor: "emerald" };
+  }
+}
+
+function UrgenciaBadge({
+  urgencia,
+  statusFinanceiro,
+  showLabel = false,
+}: {
+  urgencia?: string;
+  statusFinanceiro?: string;
+  showLabel?: boolean;
+}) {
+  if (statusFinanceiro === "Pago" || statusFinanceiro === "Cancelado") {
+    return null;
+  }
+
+  const info = formatUrgenciaInfo(urgencia);
+  const colors = {
+    red: {
+      button: "bg-[#EF4444]/15 border-[#EF4444]/35 text-[#EF4444] hover:bg-[#EF4444]/25 hover:border-[#EF4444]/60",
+      full: "bg-[#EF4444]/15 border-[#EF4444]/35 text-[#F87171]",
+      icon: "text-[#EF4444]",
+      dot: "bg-[#EF4444]",
+    },
+    amber: {
+      button: "bg-[#F59E0B]/15 border-[#F59E0B]/35 text-[#F59E0B] hover:bg-[#F59E0B]/25 hover:border-[#F59E0B]/60",
+      full: "bg-[#F59E0B]/15 border-[#F59E0B]/35 text-[#FBBF24]",
+      icon: "text-[#F59E0B]",
+      dot: "bg-[#F59E0B]",
+    },
+    emerald: {
+      button: "bg-[#10B981]/15 border-[#10B981]/35 text-[#10B981] hover:bg-[#10B981]/25 hover:border-[#10B981]/60",
+      full: "bg-[#10B981]/15 border-[#10B981]/35 text-[#34D399]",
+      icon: "text-[#10B981]",
+      dot: "bg-[#10B981]",
+    },
+  }[info.cor];
+
+  if (showLabel) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border whitespace-nowrap ${colors.full}`}
+        title={`Urgência: ${info.label} (${info.prazo})`}
+      >
+        <AlertTriangle size={13} className={colors.icon} strokeWidth={2.2} />
+        <span className="font-semibold">{info.label}</span>
+        <span className="opacity-75 text-[10px]">({info.prazo})</span>
+      </span>
+    );
+  }
+
+  return (
+    <div className="relative group/urg inline-flex items-center justify-center">
+      <span
+        className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all duration-150 cursor-pointer ${colors.button}`}
+        title={`Urgência: ${info.label} (${info.prazo})`}
+      >
+        <AlertTriangle size={13} className={colors.icon} strokeWidth={2.2} />
+      </span>
+
+      {/* Floating tooltip on hover */}
+      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/urg:opacity-100 group-hover/urg:-translate-y-0.5 transition-all duration-150 z-50">
+        <div className="bg-[#18181b] border border-[#2e2e33] text-[#eee] text-[10px] sm:text-[11px] px-2.5 py-1 rounded-md shadow-2xl whitespace-nowrap flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} />
+          <span className="font-semibold text-white">{info.label}</span>
+          <span className="text-[#888]">({info.prazo})</span>
+        </div>
+        <div className="w-1.5 h-1.5 bg-[#18181b] border-r border-b border-[#2e2e33] rotate-45 mx-auto -mt-1" />
+      </div>
+    </div>
+  );
+}
 
 interface Solicitacao {
   id: string;
@@ -55,6 +191,7 @@ interface Solicitacao {
   valor: number;
   statusIPA: "Enviado" | "Rascunho" | "Aguardando NF" | "Concluído" | "Pendente Aprovação";
   statusFinanceiro: "Pendente" | "Pago" | "Cancelado";
+  urgencia?: UrgenciaNivel;
   data: string;
   data_atendimento?: string;
   cidade: string;
@@ -107,6 +244,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<"mes" | "dia">("mes");
   const [financeDateFilter, setFinanceDateFilter] = useState<"all"|"hoje"|"amanha"|"semana"|"atrasados">("all");
+  const [financeUrgenciaFilter, setFinanceUrgenciaFilter] = useState<"all" | "urgente" | "media" | "nao_urgente">("all");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -165,6 +303,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   const [formRecebedorPix, setFormRecebedorPix] = useState("");
   const [formDataAtendimento, setFormDataAtendimento] = useState("");
   const [formObservacao, setFormObservacao] = useState("");
+  const [formUrgencia, setFormUrgencia] = useState<UrgenciaNivel>("nao_urgente");
 
   // Mock Access State
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
@@ -233,6 +372,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         valor: Number(s.valor),
         statusIPA: s.status_ipa,
         statusFinanceiro: s.status_financeiro,
+        urgencia: calcularUrgenciaPorData(s.data_atendimento),
         data: new Date(s.created_at).toLocaleDateString("pt-BR") + " — " + new Date(s.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
         data_atendimento: s.data_atendimento ? new Date(s.data_atendimento).toLocaleDateString("pt-BR", {timeZone: 'UTC'}) : undefined,
         cidade: s.cidade,
@@ -483,6 +623,13 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
   // Handlers
   const openNovaSolicitacao = useCallback(() => {
     setSelectedId(null);
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${y}-${m}-${d}`;
+    setFormDataAtendimento(todayStr);
+    setFormUrgencia(calcularUrgenciaPorData(todayStr));
     setRightPanel("nova");
   }, []);
 
@@ -519,6 +666,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setFormEstado("Selecione");
     setFormDataAtendimento("");
     setFormObservacao("");
+    setFormUrgencia("nao_urgente");
     setUploadedFile(null);
     setUploadedFileSize(null);
     setUploadedNF(null);
@@ -547,17 +695,18 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     setFormCidade(current.cidade);
     setFormValor(brl(current.valor));
     setFormColabs(current.colaboradoresList);
+    let formattedDate = "";
     if (current.data_atendimento) {
       // Postgres returns YYYY-MM-DD or DD/MM/YYYY
       const parts = current.data_atendimento.split('/');
       if (parts.length === 3) {
-        setFormDataAtendimento(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
       } else {
-        setFormDataAtendimento(current.data_atendimento);
+        formattedDate = current.data_atendimento;
       }
-    } else {
-      setFormDataAtendimento("");
     }
+    setFormDataAtendimento(formattedDate);
+    setFormUrgencia(calcularUrgenciaPorData(formattedDate));
     setFormObservacao(current.observacao || "");
     const c = mockClinicas.find(cl => cl.nome === current.clinica);
     if (c) {
@@ -673,6 +822,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
               valor: valorNumerico,
               data_atendimento: formDataAtendimento ? formDataAtendimento : null,
               observacao: formObservacao ? formObservacao : null,
+              urgencia: calcularUrgenciaPorData(formDataAtendimento),
             }).eq('id', current.db_id);
 
             if (solError) throw solError;
@@ -705,6 +855,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
             observacao: formObservacao ? formObservacao : null,
             solicitado_por_nome: userName,
             created_by: session?.user?.id || null,
+            urgencia: calcularUrgenciaPorData(formDataAtendimento),
           }).select().single();
 
           if (solError) throw solError;
@@ -740,13 +891,14 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
         setFormRecebedorPix("");
         setFormDataAtendimento("");
         setFormObservacao("");
+        setFormUrgencia("nao_urgente");
       } catch (error: any) {
         alert("Erro ao salvar solicitação: " + error.message);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [formClinica, formCliente, formColabs, formValor, formPix, formRecebedorPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, isSubmitting, userRole, userName, session, fetchDashboardData]
+    [formClinica, formCliente, formColabs, formValor, formPix, formRecebedorPix, formCidade, formEstado, mockClinicas, mockEmpresas, rightPanel, selectedId, solicitacoes, formColabInput, formDataAtendimento, formObservacao, formUrgencia, isSubmitting, userRole, userName, session, fetchDashboardData]
   );
 
   const togglePayment = useCallback(async () => {
@@ -814,6 +966,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
               `*Clínica:* ${current.clinica}\n` +
               `*Empresa Cliente:* ${current.cliente}\n` +
               `*Valor:* ${brl(current.valor)}\n` +
+              `*Urgência:* ${formatUrgenciaInfo(current.urgencia).label} (${formatUrgenciaInfo(current.urgencia).prazo})\n` +
               `*Data Atendimento:* ${current.data_atendimento || current.data}\n` +
               (current.chave_pix ? `*Chave PIX:* ${current.chave_pix}\n` : '') +
               (current.recebedor_pix ? `*Recebedor:* ${current.recebedor_pix}\n` : '') +
@@ -858,11 +1011,15 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('solicitacoes').update({ 
+      const finalUrgencia = calcularUrgenciaPorData(current.data_atendimento);
+      const updateData: any = { 
         status_ipa: "Enviado",
         approved_by: session?.user?.id,
-        aprovado_por_nome: userName
-      }).eq('id', current.db_id);
+        aprovado_por_nome: userName,
+        urgencia: finalUrgencia,
+      };
+
+      const { error } = await supabase.from('solicitacoes').update(updateData).eq('id', current.db_id);
       
       if (error) throw error;
       
@@ -873,7 +1030,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedId, solicitacoes, session, userName]);
+  }, [selectedId, solicitacoes, session, userName, fetchDashboardData]);
 
   const handleSaveDetalhes = useCallback(async () => {
     if (!selectedId) return;
@@ -1215,7 +1372,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                       <span className="text-[10px] text-[#555]">{item.data}</span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
                                     <StatusPill
                                       label={item.statusIPA}
                                       variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
@@ -1284,10 +1442,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                     <td className="px-2 py-2 text-[#888] font-medium text-right text-[10px] truncate">{brl(item.valor)}</td>
                                     <td className="px-2 py-2 text-right">
                                       <div className="flex flex-col gap-0.5 items-end">
-                                        <StatusPill
-                                          label={item.statusIPA}
-                                          variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
-                                        />
+                                        <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
                                         <StatusPill
                                           label={item.statusFinanceiro}
                                           variant={
@@ -1313,7 +1468,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                         <table className="w-full text-left">
                           <thead>
                             <tr className="border-b border-[#1a1a1a]">
-                              {["ID", "Clínica", "Empresa Cliente", "Valor", "Status IPA", "Status Financeiro"].map(
+                              {["ID", "Clínica", "Empresa Cliente", "Valor", "Urgência", "Status IPA", "Status Financeiro"].map(
                                 (th) => (
                                   <th
                                     key={th}
@@ -1340,6 +1495,9 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                   <td className="px-4 py-3 md:px-5 md:py-3 font-medium text-[#ddd]">{item.clinica}</td>
                                   <td className="px-4 py-3 md:px-5 md:py-3 text-[#666]">{item.cliente}</td>
                                   <td className="px-4 py-3 md:px-5 md:py-3 text-[#888] font-medium">{brl(item.valor)}</td>
+                                  <td className="px-4 py-3 md:px-5 md:py-3">
+                                    <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                  </td>
                                   <td className="px-4 py-3 md:px-5 md:py-3">
                                     <StatusPill
                                       label={item.statusIPA}
@@ -1446,10 +1604,13 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                       <span className="text-[10px] text-[#555]">{item.data}</span>
                                     )}
                                   </div>
-                                  <StatusPill
-                                    label={item.statusIPA}
-                                    variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
-                                  />
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                    <StatusPill
+                                      label={item.statusIPA}
+                                      variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
+                                    />
+                                  </div>
                                 </div>
                                 <div className="flex items-end justify-between gap-2 mt-0.5">
                                   <div className="min-w-0 flex-1">
@@ -1502,10 +1663,13 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                     </td>
                                     <td className="px-2 py-2 text-[#888] font-medium text-right text-[10px] truncate">{brl(item.valor)}</td>
                                     <td className="px-2 py-2 text-right">
-                                      <StatusPill
-                                        label={item.statusIPA}
-                                        variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
-                                      />
+                                      <div className="flex flex-col gap-0.5 items-end">
+                                        <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                        <StatusPill
+                                          label={item.statusIPA}
+                                          variant={item.statusIPA === "Rascunho" ? "muted" : "default"}
+                                        />
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -1520,7 +1684,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                         <table className="w-full text-left">
                           <thead>
                             <tr className="border-b border-[#1a1a1a]">
-                              {["ID", "Clínica", "Empresa Cliente", "Valor", "Status IPA"].map(
+                              {["ID", "Clínica", "Empresa Cliente", "Valor", "Urgência", "Status IPA"].map(
                                 (th) => (
                                   <th
                                     key={th}
@@ -1547,6 +1711,9 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                   <td className="px-4 py-3 md:px-5 md:py-3 font-medium text-[#ddd]">{item.clinica}</td>
                                   <td className="px-4 py-3 md:px-5 md:py-3 text-[#666]">{item.cliente}</td>
                                   <td className="px-4 py-3 md:px-5 md:py-3 text-[#888] font-medium">{brl(item.valor)}</td>
+                                  <td className="px-4 py-3 md:px-5 md:py-3">
+                                    <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                  </td>
                                   <td className="px-4 py-3 md:px-5 md:py-3">
                                     <StatusPill
                                       label={item.statusIPA}
@@ -1621,41 +1788,74 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                         </button>
                       </div>
                     </div>
-                    <select
-                      value={financeDateFilter}
-                      onChange={(e) => setFinanceDateFilter(e.target.value as any)}
-                      className="bg-[#080808] border border-[#222] text-[#ccc] text-[10px] sm:text-[11px] px-2.5 py-1.5 rounded-lg outline-none cursor-pointer hover:border-[#333] transition-colors w-full sm:w-auto"
-                    >
-                      <option value="all">Todas as Datas</option>
-                      <option value="hoje">Para Hoje</option>
-                      <option value="amanha">Para Amanhã</option>
-                      <option value="semana">Próximos 7 dias</option>
-                      <option value="atrasados">Atrasados</option>
-                    </select>
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                      <select
+                        value={financeUrgenciaFilter}
+                        onChange={(e) => setFinanceUrgenciaFilter(e.target.value as any)}
+                        className="bg-[#080808] border border-[#222] text-[#ccc] text-[10px] sm:text-[11px] px-2.5 py-1.5 rounded-lg outline-none cursor-pointer hover:border-[#333] transition-colors w-full sm:w-auto"
+                      >
+                        <option value="all">Todas as Urgências</option>
+                        <option value="urgente">🔴 Urgentes (Hoje)</option>
+                        <option value="media">🟡 Médias (2 dias)</option>
+                        <option value="nao_urgente">🟢 Não Urgentes (3 dias)</option>
+                      </select>
+
+                      <select
+                        value={financeDateFilter}
+                        onChange={(e) => setFinanceDateFilter(e.target.value as any)}
+                        className="bg-[#080808] border border-[#222] text-[#ccc] text-[10px] sm:text-[11px] px-2.5 py-1.5 rounded-lg outline-none cursor-pointer hover:border-[#333] transition-colors w-full sm:w-auto"
+                      >
+                        <option value="all">Todas as Datas</option>
+                        <option value="hoje">Para Hoje</option>
+                        <option value="amanha">Para Amanhã</option>
+                        <option value="semana">Próximos 7 dias</option>
+                        <option value="atrasados">Atrasados</option>
+                      </select>
+                    </div>
                   </div>
 
                   {(() => {
-                    const filteredFinance = solicitacoes.filter(s => {
-                      if (s.statusIPA === "Rascunho") return false;
-                      if (financeDateFilter !== "all") {
-                        if (!s.data_atendimento) return false;
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        let targetDateStr = s.data_atendimento;
-                        if (targetDateStr.includes('/')) {
-                          const parts = targetDateStr.split('/');
-                          if (parts.length === 3) targetDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    const filteredFinance = solicitacoes
+                      .filter(s => {
+                        if (s.statusIPA === "Rascunho") return false;
+                        if (financeUrgenciaFilter !== "all") {
+                          if ((s.urgencia || "nao_urgente") !== financeUrgenciaFilter) return false;
                         }
-                        const itemDate = new Date(targetDateStr + "T00:00:00");
-                        const diffTime = itemDate.getTime() - today.getTime();
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if (financeDateFilter === "hoje") return diffDays === 0;
-                        if (financeDateFilter === "amanha") return diffDays === 1;
-                        if (financeDateFilter === "semana") return diffDays >= 0 && diffDays <= 7;
-                        if (financeDateFilter === "atrasados") return diffDays < 0 && s.statusFinanceiro === 'Pendente';
-                      }
-                      return true;
-                    });
+                        if (financeDateFilter !== "all") {
+                          if (!s.data_atendimento) return false;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          let targetDateStr = s.data_atendimento;
+                          if (targetDateStr.includes('/')) {
+                            const parts = targetDateStr.split('/');
+                            if (parts.length === 3) targetDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                          }
+                          const itemDate = new Date(targetDateStr + "T00:00:00");
+                          const diffTime = itemDate.getTime() - today.getTime();
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                          if (financeDateFilter === "hoje") return diffDays === 0;
+                          if (financeDateFilter === "amanha") return diffDays === 1;
+                          if (financeDateFilter === "semana") return diffDays >= 0 && diffDays <= 7;
+                          if (financeDateFilter === "atrasados") return diffDays < 0 && s.statusFinanceiro === 'Pendente';
+                        }
+                        return true;
+                      })
+                      .sort((a, b) => {
+                        // 1. Pagamentos Pendentes vêm antes dos Pagos
+                        if (a.statusFinanceiro === "Pendente" && b.statusFinanceiro === "Pago") return -1;
+                        if (a.statusFinanceiro === "Pago" && b.statusFinanceiro === "Pendente") return 1;
+
+                        // 2. Prioridade por Urgência (Urgente = 1, Média = 2, Não Urgente = 3)
+                        if (a.statusFinanceiro === "Pendente" && b.statusFinanceiro === "Pendente") {
+                          const peso: Record<string, number> = { urgente: 1, media: 2, nao_urgente: 3 };
+                          const pesoA = peso[a.urgencia || "nao_urgente"] || 3;
+                          const pesoB = peso[b.urgencia || "nao_urgente"] || 3;
+                          if (pesoA !== pesoB) return pesoA - pesoB;
+                        }
+
+                        // 3. Ordem cronológica decrescente
+                        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+                      });
 
                     if (filteredFinance.length === 0) {
                       return (
@@ -1689,7 +1889,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                         <span className="text-[10px] text-[#555]">{item.data}</span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
                                       <StatusPill
                                         label={item.statusFinanceiro}
                                         variant={
@@ -1756,9 +1957,12 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                       </td>
                                       <td className="px-2 py-2 text-[#888] font-medium text-right text-[10px] truncate">{brl(item.valor)}</td>
                                       <td className="px-2 py-2 text-right">
-                                        <button className="text-[10px] px-2 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] font-medium border border-[#3B82F6]/20">
-                                          {item.statusFinanceiro === "Pendente" ? "Pagar" : "Ver"}
-                                        </button>
+                                        <div className="flex flex-col gap-0.5 items-end">
+                                          <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                          <button className="text-[10px] px-2 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] font-medium border border-[#3B82F6]/20">
+                                            {item.statusFinanceiro === "Pendente" ? "Pagar" : "Ver"}
+                                          </button>
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -1773,7 +1977,7 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                           <table className="w-full text-left">
                             <thead>
                               <tr className="border-b border-[#1a1a1a]">
-                                {["ID", "Clínica", "Empresa Cliente", "Valor", "Status Financeiro", "Ação"].map(
+                                {["ID", "Clínica", "Empresa Cliente", "Valor", "Urgência", "Status Financeiro", "Ação"].map(
                                   (th) => (
                                     <th
                                       key={th}
@@ -1800,6 +2004,9 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                                     <td className="px-4 py-3 md:px-5 md:py-3 font-medium text-[#ddd]">{item.clinica}</td>
                                     <td className="px-4 py-3 md:px-5 md:py-3 text-[#666]">{item.cliente}</td>
                                     <td className="px-4 py-3 md:px-5 md:py-3 text-[#888] font-medium">{brl(item.valor)}</td>
+                                    <td className="px-4 py-3 md:px-5 md:py-3">
+                                      <UrgenciaBadge urgencia={item.urgencia} statusFinanceiro={item.statusFinanceiro} />
+                                    </td>
                                     <td className="px-4 py-3 md:px-5 md:py-3">
                                       <StatusPill
                                         label={item.statusFinanceiro}
@@ -2207,6 +2414,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormDataAtendimento={setFormDataAtendimento}
                   formObservacao={formObservacao}
                   setFormObservacao={setFormObservacao}
+                  formUrgencia={formUrgencia}
+                  setFormUrgencia={setFormUrgencia}
                   onSubmit={handleSubmit}
                   isSubmitting={isSubmitting}
                 />
@@ -2277,6 +2486,8 @@ function DashboardSGF({ session, userRole }: { session: any, userRole: "ipa" | "
                   setFormDataAtendimento={setFormDataAtendimento}
                   formObservacao={formObservacao}
                   setFormObservacao={setFormObservacao}
+                  formUrgencia={formUrgencia}
+                  setFormUrgencia={setFormUrgencia}
                   onSubmit={handleSubmit}
                   isSubmitting={isSubmitting}
                 />
@@ -2505,6 +2716,8 @@ function NovaSolicitacaoPanel({
   setFormDataAtendimento,
   formObservacao,
   setFormObservacao,
+  formUrgencia,
+  setFormUrgencia,
   onSubmit,
   isSubmitting,
 }: {
@@ -2536,6 +2749,8 @@ function NovaSolicitacaoPanel({
   setFormDataAtendimento: (v: string) => void;
   formObservacao: string;
   setFormObservacao: (v: string) => void;
+  formUrgencia: UrgenciaNivel;
+  setFormUrgencia: (v: UrgenciaNivel) => void;
   onSubmit: (e: React.FormEvent) => void;
   isSubmitting?: boolean;
   userRole?: "ipa" | "financeiro" | "empresa" | null;
@@ -2607,15 +2822,29 @@ function NovaSolicitacaoPanel({
 
           {/* Data Atendimento (Oculto para Empresa) */}
           {userRole !== "empresa" && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-[#999]">Data do Atendimento</label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-[#999]">Data do Atendimento</label>
+                {formDataAtendimento && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-[#777]">Urgência:</span>
+                    <UrgenciaBadge urgencia={calcularUrgenciaPorData(formDataAtendimento)} showLabel />
+                  </div>
+                )}
+              </div>
               <input
                 type="date"
                 value={formDataAtendimento}
-                onChange={(e) => setFormDataAtendimento(e.target.value)}
+                onChange={(e) => {
+                  setFormDataAtendimento(e.target.value);
+                  setFormUrgencia(calcularUrgenciaPorData(e.target.value));
+                }}
                 className="w-full bg-[#080808] border border-[#1a1a1a] focus:border-[#3B82F6] rounded-lg px-3 py-2 text-[12px] text-[#ccc] outline-none transition-colors [color-scheme:dark]"
                 required
               />
+              <p className="text-[10px] text-[#555]">
+                O sistema calcula a urgência automaticamente: Hoje (Urgente) · Até 2 dias (Média) · 3 dias ou mais (Não Urgente)
+              </p>
             </div>
           )}
 
@@ -2826,6 +3055,13 @@ function DetalhesPanel({
             {(req.cidade || req.estado) && (
               <MetaRow icon={<MapPin size={14} />} label="Localidade" value={`${req.cidade || ''}${req.cidade && req.estado ? ' - ' : ''}${req.estado || ''}`} />
             )}
+            {req.statusFinanceiro !== "Pago" && req.statusFinanceiro !== "Cancelado" && (
+              <MetaRow 
+                icon={<AlertTriangle size={14} className={req.urgencia === 'urgente' ? "text-[#EF4444]" : req.urgencia === 'media' ? "text-[#F59E0B]" : "text-[#10B981]"} />} 
+                label="Urgência" 
+                value={<UrgenciaBadge urgencia={req.urgencia} statusFinanceiro={req.statusFinanceiro} showLabel />} 
+              />
+            )}
             <MetaRow icon={<Calendar size={14} />} label="Solicitado em" value={req.data} />
             {req.data_atendimento && (
               <MetaRow icon={<Calendar size={14} />} label="Data Atendimento" value={req.data_atendimento} />
@@ -2881,14 +3117,25 @@ function DetalhesPanel({
 
           {/* Aprovação IPA */}
           {userRole === "ipa" && req.statusIPA === "Pendente Aprovação" && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <h3 className="text-[12px] font-semibold text-[#ddd]">Aprovação</h3>
-              <p className="text-[11px] text-[#888]">Esta solicitação foi enviada pela Empresa Cliente e aguarda aprovação para ir ao Financeiro.</p>
+              <p className="text-[11px] text-[#888]">
+                Esta solicitação foi enviada pela Empresa Cliente. A urgência é identificada automaticamente pela data de atendimento:
+              </p>
+              
+              <div className="p-3 rounded-lg bg-[#080808] border border-[#222] flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-[#777] block">Data do Atendimento:</span>
+                  <span className="text-[12px] font-semibold text-[#eee]">{req.data_atendimento || req.data}</span>
+                </div>
+                <UrgenciaBadge urgencia={calcularUrgenciaPorData(req.data_atendimento)} showLabel />
+              </div>
+
               <button
-                onClick={onAprovar}
-                className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white px-6 py-2.5 rounded-xl text-[12px] font-semibold transition-colors"
+                onClick={() => onAprovar()}
+                className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white px-6 py-2.5 rounded-xl text-[12px] font-semibold transition-colors cursor-pointer"
               >
-                Aprovar Solicitação
+                Aprovar e Enviar ao Financeiro
               </button>
             </div>
           )}
@@ -3193,7 +3440,7 @@ function MetaRow({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
 }) {
   return (
     <div className="flex items-center gap-2 sm:gap-2.5 text-[10px] sm:text-[11px]">

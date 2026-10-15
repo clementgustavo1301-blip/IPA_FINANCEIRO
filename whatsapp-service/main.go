@@ -54,6 +54,8 @@ type QueueItem struct {
 }
 
 var (
+	container      *sqlstore.Container
+	clientLog      waLog.Logger
 	client         *whatsmeow.Client
 	qrCodeMutex    sync.RWMutex
 	currentQRCode  string
@@ -134,6 +136,37 @@ func enableCORS(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 }
 
+func setupClientEvents() {
+	if client == nil {
+		return
+	}
+	client.AddEventHandler(func(evt interface{}) {
+		switch evt.(type) {
+		case *events.Connected:
+			log.Println("[WhatsApp] Evento: Conexão Estabelecida.")
+		case *events.LoggedOut:
+			log.Println("[WhatsApp] Evento: Desconectado/Deslogado.")
+			setupNewDeviceAndClient()
+		}
+	})
+}
+
+func setupNewDeviceAndClient() {
+	if client != nil && client.IsConnected() {
+		client.Disconnect()
+	}
+	if container != nil {
+		deviceStore := container.NewDevice()
+		client = whatsmeow.NewClient(deviceStore, clientLog)
+		setupClientEvents()
+	}
+	qrCodeMutex.Lock()
+	currentQRCode = ""
+	currentQRImage = ""
+	qrCodeMutex.Unlock()
+	log.Println("[WhatsApp] Novo dispositivo Whatsmeow inicializado pronto para QR Code.")
+}
+
 func startPairing() error {
 	connectMutex.Lock()
 	defer connectMutex.Unlock()
@@ -158,16 +191,51 @@ func startPairing() error {
 			connectMutex.Unlock()
 		}()
 
-		if client.Store.ID == nil {
+		if client.Store == nil || client.Store.ID == nil {
 			qrChan, err := client.GetQRChannel(context.Background())
 			if err != nil {
 				log.Printf("[WhatsApp] Erro ao obter canal QR: %v", err)
-				return
+				if strings.Contains(err.Error(), "deleted device") {
+					setupNewDeviceAndClient()
+					var errQR error
+					qrChan, errQR = client.GetQRChannel(context.Background())
+					if errQR != nil {
+						log.Printf("[WhatsApp] Falha ao recriar canal QR: %v", errQR)
+						return
+					}
+				} else {
+					return
+				}
 			}
 
 			err = client.Connect()
 			if err != nil {
 				log.Printf("[WhatsApp] Erro ao conectar: %v", err)
+				if strings.Contains(err.Error(), "deleted device") {
+					setupNewDeviceAndClient()
+					qrChan, errQR := client.GetQRChannel(context.Background())
+					if errQR == nil {
+						_ = client.Connect()
+						for evt := range qrChan {
+							if evt.Event == "code" {
+								qrCodeMutex.Lock()
+								currentQRCode = evt.Code
+								png, errPng := qrcode.Encode(evt.Code, qrcode.Medium, 256)
+								if errPng == nil {
+									currentQRImage = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+								}
+								qrCodeMutex.Unlock()
+								log.Println("[WhatsApp] Novo QR Code gerado para escaneamento.")
+							} else if evt.Event == "success" {
+								qrCodeMutex.Lock()
+								currentQRCode = ""
+								currentQRImage = ""
+								qrCodeMutex.Unlock()
+								log.Println("[WhatsApp] Login efetuado com sucesso!")
+							}
+						}
+					}
+				}
 				return
 			}
 
@@ -195,6 +263,32 @@ func startPairing() error {
 			err := client.Connect()
 			if err != nil {
 				log.Printf("[WhatsApp] Erro ao reconectar sessão: %v", err)
+				if strings.Contains(err.Error(), "deleted device") || strings.Contains(err.Error(), "401") {
+					log.Println("[WhatsApp] Sessão inválida/deletada detectada. Criando novo dispositivo...")
+					setupNewDeviceAndClient()
+					qrChan, errQR := client.GetQRChannel(context.Background())
+					if errQR == nil {
+						_ = client.Connect()
+						for evt := range qrChan {
+							if evt.Event == "code" {
+								qrCodeMutex.Lock()
+								currentQRCode = evt.Code
+								png, errPng := qrcode.Encode(evt.Code, qrcode.Medium, 256)
+								if errPng == nil {
+									currentQRImage = "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+								}
+								qrCodeMutex.Unlock()
+								log.Println("[WhatsApp] Novo QR Code gerado para escaneamento.")
+							} else if evt.Event == "success" {
+								qrCodeMutex.Lock()
+								currentQRCode = ""
+								currentQRImage = ""
+								qrCodeMutex.Unlock()
+								log.Println("[WhatsApp] Login efetuado com sucesso!")
+							}
+						}
+					}
+				}
 			} else {
 				log.Println("[WhatsApp] Reconectado com sucesso usando sessão salva.")
 			}
@@ -594,17 +688,13 @@ func handleDisconnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if client != nil && client.IsConnected() {
-		err := client.Logout(context.Background())
-		if err != nil {
+	if client != nil {
+		if client.IsConnected() {
+			_ = client.Logout(context.Background())
 			client.Disconnect()
 		}
 	}
-
-	qrCodeMutex.Lock()
-	currentQRCode = ""
-	currentQRImage = ""
-	qrCodeMutex.Unlock()
+	setupNewDeviceAndClient()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -805,36 +895,31 @@ func main() {
 	dbLog := waLog.Stdout("Database", "WARN", true)
 	dbPath := filepath.Join(".", "whatsapp_session.db")
 	dbDSN := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(10000)", dbPath)
-	container, err := sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
+	var err error
+	container, err = sqlstore.New(context.Background(), "sqlite", dbDSN, dbLog)
 	if err != nil {
 		log.Fatalf("Erro ao abrir banco SQLite de sessão: %v", err)
 	}
 
 	deviceStore, err := container.GetFirstDevice(context.Background())
-	if err != nil {
-		log.Fatalf("Erro ao carregar dispositivo: %v", err)
+	if err != nil || deviceStore == nil {
+		deviceStore = container.NewDevice()
 	}
 
-	clientLog := waLog.Stdout("Client", "INFO", true)
+	clientLog = waLog.Stdout("Client", "INFO", true)
 	client = whatsmeow.NewClient(deviceStore, clientLog)
-
-	client.AddEventHandler(func(evt interface{}) {
-		switch evt.(type) {
-		case *events.Connected:
-			log.Println("[WhatsApp] Evento: Conexão Estabelecida.")
-		case *events.LoggedOut:
-			log.Println("[WhatsApp] Evento: Desconectado/Deslogado.")
-			qrCodeMutex.Lock()
-			currentQRCode = ""
-			currentQRImage = ""
-			qrCodeMutex.Unlock()
-		}
-	})
+	setupClientEvents()
 
 	// Conecta sessão existente se houver
-	if client.Store.ID != nil {
+	if client.Store != nil && client.Store.ID != nil {
 		log.Println("[WhatsApp] Sessão existente encontrada. Conectando...")
-		_ = client.Connect()
+		err = client.Connect()
+		if err != nil {
+			log.Printf("[WhatsApp] Erro na conexão inicial: %v", err)
+			if strings.Contains(err.Error(), "deleted device") || strings.Contains(err.Error(), "401") {
+				setupNewDeviceAndClient()
+			}
+		}
 	}
 
 	// Inicia worker da fila anti-ban
