@@ -29,6 +29,8 @@ interface IpaLogoProps {
   title?: string;
   /** Enables the continuous stroke-draw + fill loop animation (used on the login screen). */
   animated?: boolean;
+  /** Renders the animated subtitle ("Inteligência e Planejamento / das Ações de SST") synced with the logo loop. */
+  showAnimatedSubtitle?: boolean;
 }
 
 export default function IpaLogo({
@@ -36,6 +38,7 @@ export default function IpaLogo({
   ipClassName,
   title = "IPA",
   animated = false,
+  showAnimatedSubtitle = false,
 }: IpaLogoProps) {
   const [cycle, setCycle] = useState(0);
 
@@ -59,13 +62,14 @@ export default function IpaLogo({
   }
 
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox={IPA_LOGO_VIEWBOX}
-      fill="currentColor"
-      role="img"
-      aria-label={title}
-      className={`${className ?? ""} overflow-visible`}
+    <div
+      key={cycle}
+      className="ipa-cycle flex flex-col items-start"
+      onAnimationEnd={(e) => {
+        if (e.animationName === "ipaCycleOut") {
+          setCycle((c) => c + 1);
+        }
+      }}
     >
       <style>{`
         .ipa-f {
@@ -81,8 +85,12 @@ export default function IpaLogo({
             ipaDraw var(--dur) cubic-bezier(0.65, 0, 0.35, 1) var(--dl) both,
             ipaFade 0.8s ease-out var(--fd) both;
         }
+        .ipa-w {
+          display: inline-block;
+          animation: ipaUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) var(--wd) both;
+        }
         .ipa-cycle {
-          animation: ipaCycleOut 0.65s ease-in-out 4.8s both;
+          animation: ipaCycleOut 0.65s ease-in-out 5.6s both;
         }
         @keyframes ipaDraw {
           from { stroke-dashoffset: var(--L); }
@@ -96,95 +104,161 @@ export default function IpaLogo({
           from { opacity: 0; }
           to { opacity: 1; }
         }
+        @keyframes ipaUp {
+          from {
+            opacity: 0;
+            transform: translateY(115%);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
         @keyframes ipaCycleOut {
           from { opacity: 1; }
           to { opacity: 0; }
         }
         @media (prefers-reduced-motion: reduce) {
-          .ipa-f, .ipa-s, .ipa-cycle {
+          .ipa-f, .ipa-s, .ipa-w, .ipa-cycle {
             animation: none !important;
           }
         }
       `}</style>
-      <g
-        key={cycle}
-        className="ipa-cycle"
-        onAnimationEnd={(e) => {
-          if (e.animationName === "ipaCycleOut") {
-            setCycle((c) => c + 1);
-          }
-        }}
+
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox={IPA_LOGO_VIEWBOX}
+        fill="currentColor"
+        role="img"
+        aria-label={title}
+        className={`${className ?? ""} overflow-visible`}
       >
-        {/* Solid Fill Layers */}
-        <g className={ipClassName}>
+        <g>
+          {/* Solid Fill Layers */}
+          <g className={ipClassName}>
+            <path
+              className="ipa-f"
+              d={I_PATH}
+              style={{ "--fd": "0.8s" } as React.CSSProperties}
+            />
+            <path
+              className="ipa-f"
+              d={P_PATH}
+              fillRule="evenodd"
+              style={{ "--fd": "1.65s" } as React.CSSProperties}
+            />
+          </g>
           <path
             className="ipa-f"
+            d={A_PATH}
+            style={{ "--fd": "2.45s" } as React.CSSProperties}
+          />
+
+          {/* Animated Stroke Layers */}
+          <path
+            className="ipa-s"
             d={I_PATH}
-            style={{ "--fd": "0.8s" } as React.CSSProperties}
+            style={
+              {
+                "--L": 620,
+                "--dl": "0.2s",
+                "--dur": "0.7s",
+                "--fd": "0.8s",
+              } as React.CSSProperties
+            }
           />
           <path
-            className="ipa-f"
-            d={P_PATH}
-            fillRule="evenodd"
-            style={{ "--fd": "1.65s" } as React.CSSProperties}
+            className="ipa-s"
+            d={P_OUTER_PATH}
+            style={
+              {
+                "--L": 900,
+                "--dl": "0.65s",
+                "--dur": "1.1s",
+                "--fd": "1.65s",
+              } as React.CSSProperties
+            }
+          />
+          <path
+            className="ipa-s"
+            d={P_INNER_PATH}
+            style={
+              {
+                "--L": 320,
+                "--dl": "1.2s",
+                "--dur": "0.5s",
+                "--fd": "1.65s",
+              } as React.CSSProperties
+            }
+          />
+          <path
+            className="ipa-s"
+            d={A_PATH}
+            style={
+              {
+                "--L": 1120,
+                "--dl": "1.2s",
+                "--dur": "1.35s",
+                "--fd": "2.45s",
+              } as React.CSSProperties
+            }
           />
         </g>
-        <path
-          className="ipa-f"
-          d={A_PATH}
-          style={{ "--fd": "2.45s" } as React.CSSProperties}
-        />
+      </svg>
 
-        {/* Animated Stroke Layers */}
-        <path
-          className="ipa-s"
-          d={I_PATH}
-          style={
-            {
-              "--L": 620,
-              "--dl": "0.2s",
-              "--dur": "0.7s",
-              "--fd": "0.8s",
-            } as React.CSSProperties
-          }
-        />
-        <path
-          className="ipa-s"
-          d={P_OUTER_PATH}
-          style={
-            {
-              "--L": 900,
-              "--dl": "0.65s",
-              "--dur": "1.1s",
-              "--fd": "1.65s",
-            } as React.CSSProperties
-          }
-        />
-        <path
-          className="ipa-s"
-          d={P_INNER_PATH}
-          style={
-            {
-              "--L": 320,
-              "--dl": "1.2s",
-              "--dur": "0.5s",
-              "--fd": "1.65s",
-            } as React.CSSProperties
-          }
-        />
-        <path
-          className="ipa-s"
-          d={A_PATH}
-          style={
-            {
-              "--L": 1120,
-              "--dl": "1.2s",
-              "--dur": "1.35s",
-              "--fd": "2.45s",
-            } as React.CSSProperties
-          }
-        />
-      </g>
-    </svg>
+      {showAnimatedSubtitle && (
+        <p
+          aria-label="Inteligência e Planejamento das Ações de SST"
+          className="text-[13px] text-white/90 font-medium tracking-[0.03em] leading-[1.45] mt-3"
+        >
+          <span className="block overflow-hidden">
+            <span
+              className="ipa-w mr-[0.32em]"
+              style={{ "--wd": "2.55s" } as React.CSSProperties}
+            >
+              Inteligência
+            </span>
+            <span
+              className="ipa-w mr-[0.32em]"
+              style={{ "--wd": "2.64s" } as React.CSSProperties}
+            >
+              e
+            </span>
+            <span
+              className="ipa-w"
+              style={{ "--wd": "2.73s" } as React.CSSProperties}
+            >
+              Planejamento
+            </span>
+          </span>
+          <span className="block overflow-hidden">
+            <span
+              className="ipa-w mr-[0.32em]"
+              style={{ "--wd": "2.82s" } as React.CSSProperties}
+            >
+              das
+            </span>
+            <span
+              className="ipa-w mr-[0.32em]"
+              style={{ "--wd": "2.91s" } as React.CSSProperties}
+            >
+              Ações
+            </span>
+            <span
+              className="ipa-w mr-[0.32em]"
+              style={{ "--wd": "3.00s" } as React.CSSProperties}
+            >
+              de
+            </span>
+            <span
+              className="ipa-w"
+              style={{ "--wd": "3.09s" } as React.CSSProperties}
+            >
+              SST
+            </span>
+          </span>
+        </p>
+      )}
+    </div>
   );
 }

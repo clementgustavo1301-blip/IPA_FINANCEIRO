@@ -131,15 +131,9 @@ export default function AuthScreen() {
           <div className="flex flex-col items-start">
             <IpaLogo
               animated
+              showAnimatedSubtitle
               className="w-[210px] h-[86px] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]"
             />
-
-            {/* Logo Subtitle */}
-            <p className="text-[13px] text-white/90 font-medium tracking-[0.03em] leading-[1.45] mt-3">
-              Inteligência e Planejamento em
-              <br />
-              Ações de Saúde e Segurança
-            </p>
           </div>
 
           {/* Minimalist Horizontal Line Divider */}
